@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta name="theme-color" content="#0a0508">
+  <link rel="icon" href="data:,">
+  <title>BRAIN WATCH — Fight For Your Life (Sega Pixel) · city</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/game.css?v=sega44">
+</head>
+<body>
+  <main class="app-shell" id="app">
+    <header class="topbar">
+      <div class="topbar-branding">
+        <div id="audioToggles" class="audio-toggles" aria-label="Audio toggles">
+          <span id="muteMusic" class="mute-btn" title="Mute music" role="button" tabindex="0" aria-label="Mute music"></span>
+          <span id="muteSfx" class="mute-btn mute-sfx" title="Mute SFX" role="button" tabindex="0" aria-label="Mute SFX">SFX</span>
+        </div>
+        <div class="brand">
+          <p class="brand-title">BRAIN WATCH</p>
+          <h1 class="brand-song">FIGHT FOR YOUR LIFE</h1>
+        </div>
+      </div>
+      <div class="hud-compact" id="hud">
+        <span class="chip">SCORE <strong id="score_value">0</strong></span>
+        <span class="chip led-speed">SPD <strong id="speed_led">000</strong></span>
+        <span class="chip">DEATHS <strong id="deaths_value">0</strong></span>
+      </div>
+    </header>
+
+    <button id="pauseButton" class="pause-btn pause-btn-float hidden" type="button" aria-label="Pause">PAUSE</button>
+    <section class="stage" aria-label="Race stage">
+      <div class="meters" aria-hidden="true">
+        <div class="meter integrity-meter" title="Health">
+          <span class="meter-label">HEALTH</span>
+          <span id="health_fill"></span>
+        </div>
+        <div class="meter power-meter" title="Power">
+          <span class="meter-label">POWER</span>
+          <span id="power_fill"></span>
+        </div>
+      </div>
+      <canvas id="canvas" width="640" height="720">
+        Your browser does not support HTML5 canvas.
+      </canvas>
+      <div id="instructionBanner" class="instruction-banner hidden"></div>
+      <div id="eventFeed" class="event-feed"></div>
+      <div id="countdown" class="countdown hidden">3</div>
+      <div id="deathFlash" class="death-flash hidden" aria-hidden="true">DEATH</div>
+      <div id="bgChip" class="bg-chip" aria-hidden="true">DUSK</div>
+      <div id="musicBuffering" class="music-buffering hidden" aria-live="polite">BUFFERING MUSIC</div>
+      <div id="finaleFx" class="finale-fx hidden" aria-hidden="true">
+        <div class="finale-blood" aria-hidden="true"></div>
+        <div class="finale-flames" aria-hidden="true"></div>
+      </div>
+
+      <div id="finaleKaraoke" class="finale-karaoke hidden" aria-live="polite">
+        <div id="karaokeArt" class="karaoke-art" aria-hidden="true"></div>
+        <video id="karaokeVideo" class="karaoke-video" muted playsinline preload="auto" aria-hidden="true"></video>
+        <div class="karaoke-copy">
+          <div id="karaokeCurrent" class="karaoke-line current"></div>
+          <div id="karaokeNext" class="karaoke-line next"></div>
+        </div>
+      </div>
+
+      <div id="phaseOverlay" class="overlay">
+        <div class="overlay-card menu-title" id="overlayCard">
+          <img id="titleLogo" class="title-logo" src="images/title-brain-watch.jpg?v=sega44" alt="BRAIN WATCH" width="640" height="400" />
+          <h2 id="overlayTitle">FIGHT FOR YOUR LIFE</h2>
+          <button id="highScoresButton" class="secondary-btn" type="button">HIGH SCORES</button>
+          <ol id="highScoreList" class="high-score-list hidden" aria-label="Top 3 high scores"></ol>
+          <div id="initialsEntry" class="initials-entry hidden">
+            <p class="initials-label">NEW HIGH SCORE — NAME (20)</p>
+            <div class="initials-row">
+              <input id="initialsInput" class="initials-input" maxlength="20" autocomplete="off" autocapitalize="characters" enterkeyhint="done" inputmode="text" spellcheck="false" placeholder="YOUR NAME" />
+              <button id="initialsSave" class="primary-btn" type="button">SAVE</button>
+            </div>
+          </div>
+          <p id="overlayMessage" class="overlay-message hidden"></p>
+          <button id="insertTokenButton" class="primary-btn" type="button" disabled>LOADING…</button>
+          <button id="overlayButton" class="primary-btn hidden" type="button" disabled hidden aria-hidden="true">MAIN MENU</button>
+          <button id="instructionsButton" class="secondary-btn" type="button">INSTRUCTIONS</button>
+        </div>
+      </div>
+
+      <div id="instructionsModal" class="modal-overlay hidden" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-labelledby="instructionsTitle">
+          <h2 id="instructionsTitle">INSTRUCTIONS</h2>
+          <div id="instructionsBody" class="modal-body"></div>
+          <button id="instructionsClose" class="primary-btn" type="button">CLOSE</button>
+        </div>
+      </div>
+
+      <div id="pauseTsPanel" class="pause-ts-panel hidden" aria-hidden="true">
+        <div class="pause-ts-card">
+          <p id="pauseTsDisplay" class="pause-ts-display">TS: 0 @ 0:00:00</p>
+          <button id="pauseTsSend" class="primary-btn" type="button">SEND TS</button>
+          <button id="pauseTsTrainer" class="secondary-btn" type="button">TRAINER</button>
+          <button id="pauseTsClose" class="secondary-btn" type="button">CLOSE</button>
+        </div>
+      </div>
+
+      <div id="trainerPanel" class="trainer-panel hidden" aria-hidden="true">
+        <div class="trainer-card">
+          <div class="trainer-head">
+            <h3>TRAINER</h3>
+            <button id="trainerCloseTop" class="secondary-btn" type="button">CLOSE</button>
+          </div>
+          <div id="trainerToggles" class="trainer-toggles"></div>
+          <button id="trainerClose" class="primary-btn" type="button">CLOSE</button>
+        </div>
+      </div>
+
+      <div id="hqToast" class="hq-toast hidden" aria-live="polite">Timestamp sent to HQ</div>
+
+      <button id="tsButton" class="ts-btn hidden" type="button">TS</button>
+    </section>
+
+    <section id="lyrics" aria-live="polite">
+      <div id="lyric-current" class="lyric-line current">&nbsp;</div>
+      <div id="lyric-next" class="lyric-line next">&nbsp;</div>
+    </section>
+
+    <nav class="touch-controls hidden" id="laneControls" aria-label="Lane controls">
+      <button class="touch-btn" data-lane="0" type="button" id="btn-left" aria-label="Move left">
+        <span class="arrow">←</span>
+        <span class="label">LEFT</span>
+      </button>
+      <button class="touch-btn" data-lane="1" type="button" id="btn-right" aria-label="Move right">
+        <span class="arrow">→</span>
+        <span class="label">RIGHT</span>
+      </button>
+    </nav>
+
+    <nav class="social-links" id="socialLinks" aria-label="BRAIN WATCH links">
+      <a class="social-btn social-ig" href="https://www.instagram.com/brain.watch.band/" target="_blank" rel="noopener noreferrer">
+        <img src="images/icon-instagram.svg?v=sega44" alt="" width="28" height="28" />
+        <span class="label">INSTAGRAM</span>
+      </a>
+      <a class="social-btn social-spotify" href="https://open.spotify.com/artist/7Bf3DViunl3JIsoKhhNIOE" target="_blank" rel="noopener noreferrer">
+        <img src="images/icon-spotify.svg?v=sega44" alt="" width="28" height="28" />
+        <span class="label">SPOTIFY</span>
+      </a>
+    </nav>
+
+    <!-- Hidden legacy hooks so UI refs stay safe -->
+    <div class="sr-only" aria-hidden="true">
+      <span id="powerups_value">0</span>
+      <span id="health_text">100%</span>
+      <span id="player_handle">BRAIN WATCH</span>
+      <span id="player_handle_record">BRAIN WATCH</span>
+      <span id="nitro_value">0</span>
+      <span id="nitro_fill"></span>
+      <span id="combo_value">x1</span>
+      <span id="level_value">1</span>
+      <span id="lap_value">1</span>
+      <span id="speed_value">0</span>
+      <span id="session_score">0</span>
+      <span id="session_distance">0</span>
+      <span id="session_time">00:00</span>
+      <span id="session_rank">Survivor</span>
+      <span id="best_score_value">0</span>
+      <span id="best_distance_value">0</span>
+      <span id="best_time_value">00:00</span>
+      <span id="best_lap_value">--</span>
+      <button id="startButton" class="hidden" type="button" hidden aria-hidden="true">Start</button>
+      <button id="restartButton" class="hidden" type="button" hidden aria-hidden="true">Restart</button>
+    </div>
+  </main>
+
+  <!-- sega44: src attached by MusicLoader once the small critical art set is in (or ~7.5s safety); streams, relative URL -->
+  <audio id="music" data-src="audio.mp3" preload="auto" playsinline webkit-playsinline muted></audio>
+
+  <script src="common.js?v=sega44"></script>
+  <script src="src/game/lyrics.js?v=sega44"></script>
+  <script src="src/game/scenery.js?v=sega44"></script>
+  <script src="src/game/sections.js?v=sega44"></script>
+  <script src="src/game/config.js?v=sega44"></script>
+  <script src="src/game/state.js?v=sega44"></script>
+  <script src="src/game/track.js?v=sega44"></script>
+  <script src="src/game/traffic.js?v=sega44"></script>
+  <script src="src/game/fx.js?v=sega44"></script>
+  <script src="src/game/brains.js?v=sega44"></script>
+  <script src="src/game/cyberflies.js?v=sega44"></script>
+  <script src="src/game/renderer.js?v=sega44"></script>
+  <script src="src/game/gameplay.js?v=sega44"></script>
+  <script src="src/game/sfx.js?v=sega44"></script>
+  <script src="src/game/ui.js?v=sega44"></script>
+  <script src="src/game/sega31.js?v=sega44"></script>
+  <script src="src/game/sega31x.js?v=sega44"></script>
+  <script src="src/game/app.js?v=sega44"></script>
+</body>
+</html>

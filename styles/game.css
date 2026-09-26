@@ -1,0 +1,1331 @@
+/* utility */
+.hidden {
+  display: none !important;
+}
+
+:root {
+  --bg-1: #050308;
+  --bg-2: #12081a;
+  --surface: rgba(10, 5, 18, 0.92);
+  --line: rgba(255, 0, 200, 0.35);
+  --text: #f5e6ff;
+  --muted: #b89ac8;
+  --accent: #ff2ec4;
+  --accent-2: #7dffef;
+  --accent-3: #b44dff;
+  --good: #3dd68c;
+  --danger: #ff3355;
+  --shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  background: #050308;
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 0, 200, 0.22), transparent 55%),
+    radial-gradient(circle at 85% 90%, rgba(0, 220, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 10% 80%, rgba(120, 0, 255, 0.18), transparent 45%),
+    linear-gradient(180deg, var(--bg-2), var(--bg-1));
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+.app-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+  width: min(520px, 100vw);
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0;
+  padding: 8px 8px calc(8px + var(--safe-bottom));
+}
+
+.app-shell.karaoke-active {
+  grid-template-rows: 0 minmax(0, 1fr) 0 0;
+  padding: 0;
+  width: 100vw;
+  max-width: 100vw;
+}
+
+.app-shell.karaoke-active .topbar,
+.app-shell.karaoke-active #lyrics,
+.app-shell.karaoke-active .touch-controls,
+.app-shell.karaoke-active .social-links {
+  display: none !important;
+}
+
+.app-shell.karaoke-active .stage {
+  border: none;
+  border-radius: 0;
+  height: 100dvh;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 6px;
+}
+
+.topbar-branding {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.topbar-branding .brand {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: clamp(1.05rem, 4.8vw, 1.45rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 900;
+  text-shadow: 0 0 14px rgba(255, 46, 196, 0.65);
+  line-height: 1.1;
+}
+
+.brand h1 {
+  margin: 2px 0 0;
+  font-size: clamp(0.72rem, 2.8vw, 0.92rem);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  max-width: 58%;
+}
+
+.chip {
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 255, 239, 0.35);
+  background: rgba(8, 4, 16, 0.75);
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.chip strong {
+  color: var(--text);
+  margin-left: 3px;
+}
+
+.stage {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0a0508;
+  box-shadow: var(--shadow), 0 0 28px rgba(255, 0, 200, 0.12);
+  min-height: 0;
+  /* sega31r: letterbox so full 640×720 world stays visible (no L/R crop) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.integrity-meter { /* in .meters */ }
+
+.integrity-meter span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--danger), var(--accent-2));
+  transition: width 120ms ease-out;
+}
+
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* sega31r: contain + center — fit-visible letterbox (was cover crop) */
+  object-fit: contain;
+  object-position: center;
+  background: #1a0a12;
+  filter: saturate(0.7) brightness(0.78) contrast(1.12) hue-rotate(-8deg);
+}
+
+.instruction-banner {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 14px;
+  z-index: 7;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: clamp(0.82rem, 3.4vw, 1rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(90deg, rgba(80, 0, 60, 0.88), rgba(0, 40, 70, 0.88));
+  border: 1px solid rgba(125, 255, 239, 0.45);
+  box-shadow: 0 0 18px rgba(255, 46, 196, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease-out;
+}
+
+.instruction-banner.on { opacity: 1; }
+.instruction-banner.on.howto-quiet { /* opacity set inline from config.howtoBannerOpacity */ }
+.instruction-banner.hidden { display: none; }
+
+.event-feed {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 6;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 46, 196, 0.45);
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  pointer-events: none;
+}
+
+.event-feed.on { opacity: 1; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 2, 12, 0.78);
+  display: grid;
+  place-items: center;
+  z-index: 30;
+  padding: 16px;
+}
+
+.overlay.hidden { display: none; }
+
+.overlay-card {
+  width: min(96vw, 560px);
+  max-height: min(88dvh, 88vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(12, 6, 20, 0.96);
+  border: 1px solid rgba(255, 46, 196, 0.45);
+  border-radius: 14px;
+  text-align: center;
+  padding: 22px 18px;
+  box-shadow: 0 0 32px rgba(0, 220, 255, 0.12);
+}
+
+.overlay-kicker {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.overlay-card h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(1.3rem, 5vw, 1.75rem);
+}
+
+.overlay-card p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+#overlayMessage {
+  white-space: pre-line;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+button {
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: rgba(30, 12, 28, 0.9);
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primary-btn {
+  background: linear-gradient(90deg, #ff2ec4, #7dffef);
+  border: none;
+  color: #120818;
+  min-width: 160px;
+  padding: 14px 18px;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.countdown {
+  position: absolute;
+  inset: auto 0 42% 0;
+  margin: auto;
+  width: 120px;
+  text-align: center;
+  z-index: 10;
+  color: white;
+  font-size: clamp(2.4rem, 10vw, 3.8rem);
+  font-weight: 900;
+  text-shadow: 0 0 22px rgba(255, 46, 196, 0.85);
+}
+
+.countdown.hidden { display: none; }
+
+.audio-toggles {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: 35;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.mute-btn,
+#muteMusic {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  border-radius: 50%;
+  background: url("../images/mute.png") 0 0;
+  background-color: rgba(10, 5, 8, 0.75);
+  border: 1px solid rgba(255, 46, 196, 0.35);
+  display: inline-block;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mute-btn.on,
+#muteMusic.on { background-position: -32px 0; }
+
+.mute-btn.mute-sfx,
+#muteSfx {
+  width: auto;
+  min-width: 36px;
+  height: 28px;
+  border-radius: 8px;
+  background-image: none;
+  background-color: rgba(10, 5, 8, 0.8);
+  color: #7dffef;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 28px;
+  text-align: center;
+  padding: 0 7px;
+  border: 1px solid rgba(125, 255, 239, 0.4);
+}
+
+#muteSfx.on {
+  background-position: 0 0;
+  color: #ff7ab8;
+  border-color: rgba(255, 46, 196, 0.55);
+  text-decoration: line-through;
+  opacity: 0.85;
+}
+
+/* ---- Finale karaoke: nearly full viewport, huge lyric text ---- */
+.finale-karaoke {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: #050308;
+  overflow: hidden;
+}
+
+.finale-karaoke.hidden { display: none; }
+
+.karaoke-art {
+  position: absolute;
+  inset: 0;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transform: none;
+  background-color: #050308;
+  transition: opacity 280ms ease-out;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+.karaoke-art.on {
+  opacity: 1;
+}
+
+.karaoke-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(5, 2, 12, 0.35), rgba(5, 2, 12, 0.72) 70%, rgba(5, 2, 12, 0.88));
+}
+
+.karaoke-copy {
+  position: relative;
+  z-index: 2;
+  width: min(96vw, 920px);
+  padding: 4vh 3vw;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2vh;
+  justify-content: center;
+  min-height: 70vh;
+}
+
+.karaoke-line {
+  margin: 0;
+  line-height: 1.12;
+  text-shadow:
+    0 0 18px rgba(255, 46, 196, 0.55),
+    0 0 28px rgba(125, 255, 239, 0.35),
+    0 4px 18px rgba(0, 0, 0, 0.9);
+}
+
+.karaoke-line.current {
+  font-size: clamp(1.6rem, 7.5vw, 4.2rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  /* readable lyric lines over neon art cards — no narration chrome */
+}
+
+.karaoke-line.next {
+  font-size: clamp(1.05rem, 4.2vw, 2rem);
+  font-weight: 700;
+  color: rgba(245, 230, 255, 0.72);
+}
+
+#lyrics {
+  padding: 8px 6px 4px;
+  text-align: center;
+  min-height: 4.6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.lyric-line {
+  margin: 0;
+  line-height: 1.25;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85);
+}
+
+.lyric-line.current {
+  font-size: clamp(1.15rem, 4.8vw, 1.55rem);
+  font-weight: 800;
+  color: #fff;
+}
+
+.lyric-line.current.flash {
+  animation: lyricPulse 0.35s ease-out;
+}
+
+.lyric-line.next {
+  font-size: clamp(0.78rem, 3.2vw, 0.95rem);
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+@keyframes lyricPulse {
+  from { transform: scale(1.04); color: var(--accent-2); }
+  to { transform: scale(1); color: #fff; }
+}
+
+.touch-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 6px 0 0;
+  width: 100%;
+  touch-action: none; /* sega31g: allow finger slide between LEFT/RIGHT */
+}
+
+.touch-btn {
+  min-height: 88px;
+  border-radius: 14px;
+  border: 2px solid rgba(125, 255, 239, 0.4);
+  background:
+    linear-gradient(180deg, rgba(70, 10, 55, 0.95), rgba(16, 6, 28, 0.98));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 1rem;
+  color: var(--text);
+  box-shadow: inset 0 0 24px rgba(255, 46, 196, 0.14);
+}
+
+.touch-btn .arrow {
+  font-size: 1.8rem;
+  line-height: 1;
+  color: var(--accent-2);
+}
+
+.touch-btn .label {
+  letter-spacing: 0.18em;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.touch-btn:active,
+.touch-btn.active {
+  background: linear-gradient(180deg, rgba(140, 20, 100, 1), rgba(30, 10, 40, 1));
+  border-color: var(--accent);
+  transform: scale(0.98);
+}
+
+@media (min-height: 820px) {
+  .touch-btn { min-height: 100px; }
+}
+
+@media (max-height: 640px) {
+  .touch-btn { min-height: 72px; }
+  #lyrics { min-height: 3.4rem; padding-top: 4px; }
+  .lyric-line.current { font-size: 1.05rem; }
+  .karaoke-line.current { font-size: clamp(1.7rem, 8vw, 3.2rem); }
+}
+
+
+.karaoke-video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  background: #050308;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  transform: none;
+}
+.finale-karaoke.video-active {
+  background: #050308;
+}
+.karaoke-video.on { opacity: 1; }
+.finale-karaoke.video-active .karaoke-art { opacity: 0 !important; }
+/* Sax reel: no lyric/overlay chrome — only the contained Instagram video */
+.finale-karaoke.video-active .karaoke-copy {
+  display: none !important;
+}
+
+
+.chip.led-speed strong,
+#speed_led {
+  font-variant-numeric: tabular-nums;
+  font-family: "Courier New", Courier, monospace;
+  letter-spacing: 0.08em;
+  color: #7dffef;
+  text-shadow: 0 0 8px rgba(125, 255, 239, 0.85), 0 0 2px #7dffef;
+}
+
+.death-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(40, 0, 0, 0.55);
+  color: #ff2ec4;
+  font-size: clamp(4rem, 22vw, 9rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-shadow:
+    0 0 24px rgba(255, 46, 196, 0.95),
+    0 0 48px rgba(255, 0, 60, 0.7),
+    0 6px 20px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.death-flash.on {
+  opacity: 1;
+}
+.death-flash.hidden { display: none; }
+
+
+.title-logo {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  max-height: 32vh;
+  object-fit: contain;
+  margin: 0 auto 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 46, 196, 0.45);
+  box-shadow: 0 0 28px rgba(255, 46, 196, 0.25);
+  image-rendering: auto;
+}
+.title-logo.hidden { display: none; }
+.overlay-card.menu-title .title-kicker { display: none; }
+.overlay-card.menu-title #overlayTitle {
+  margin-top: 0;
+  font-size: clamp(1.05rem, 4vw, 1.35rem);
+  letter-spacing: 0.06em;
+  color: #7dffef;
+}
+
+
+.meters .integrity-meter,
+.meters .power-meter { display: block; }
+.meters {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 8px;
+  z-index: 6;
+  display: grid;
+  gap: 5px;
+  pointer-events: none;
+}
+.meter {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,46,196,0.35);
+  overflow: hidden;
+}
+.meter-label {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 0 4px rgba(0,0,0,0.9), 1px 1px 0 #1a0530;
+  pointer-events: none;
+  line-height: 1;
+}
+.power-meter {
+  height: 8px;
+  border-color: rgba(125,255,239,0.4);
+}
+.integrity-meter #health_fill,
+#health_fill {
+  display: block;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ff2ec4, #ff6ad5);
+}
+#power_fill {
+  display: block;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #1ad1ff, #7dffef);
+}
+/* old absolute meter override */
+.stage > .meter.integrity-meter { display: none; } /* legacy absolute meters only */
+
+.overlay-card.menu-title {
+  padding-top: 16px;
+}
+.overlay-card.menu-title .title-kicker,
+.overlay-card.menu-title .overlay-kicker { display: none !important; }
+.overlay-card.menu-title #overlayTitle {
+  margin: 4px 0 10px;
+  font-size: clamp(1rem, 4.2vw, 1.25rem);
+  letter-spacing: 0.14em;
+  color: #7dffef;
+  text-transform: uppercase;
+}
+.overlay-message.hidden,
+.initials-entry.hidden,
+.title-logo.hidden { display: none !important; }
+.high-score-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  width: min(100%, 280px);
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+.high-score-list li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,46,196,0.25);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0,0,0,0.35);
+}
+.high-score-list .rank { color: #7dffef; }
+.high-score-list .initials { letter-spacing: 0.04em; max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.high-score-list .pts { color: #ff2ec4; }
+.initials-entry { margin: 0 0 12px; }
+.initials-label { margin: 0 0 8px; color: #ffd24a; font-weight: 800; letter-spacing: 0.08em; }
+.initials-input {
+  width: min(18rem, 86vw);
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(125,255,239,0.5);
+  background: #0a0610;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+
+/* Hide SCORE/SPD/DEATHS + health/power until gameplay starts */
+.app-shell:not(.playing) .hud-compact,
+.app-shell:not(.playing) .meters {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.app-shell.playing .hud-compact,
+.app-shell.playing .meters {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Title card: keep START visible on short phones */
+.overlay {
+  align-items: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.overlay-card.menu-title {
+  padding: 12px 14px 16px;
+  max-height: min(92vh, 100%);
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.overlay-card.menu-title .title-logo {
+  width: min(72vw, 220px);
+  max-height: 28vh;
+  object-fit: contain;
+  margin: 0 auto 8px;
+}
+.overlay-card.menu-title #overlayTitle {
+  margin: 0 0 8px;
+  flex-shrink: 0;
+}
+.overlay-card.menu-title .high-score-list {
+  margin: 0 0 10px;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+.overlay-card.menu-title .primary-btn,
+.overlay-card.menu-title #overlayButton,
+.overlay-card.menu-title #insertTokenButton {
+  flex-shrink: 0;
+  margin-top: 4px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+
+.initials-entry {
+  width: 100%;
+  max-width: 420px;
+}
+.initials-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.initials-row .initials-input {
+  margin-bottom: 0;
+}
+.initials-row .primary-btn {
+  min-width: 100px;
+  padding: 12px 14px;
+}
+.overlay-card:not(.menu-title) #overlayTitle {
+  font-size: clamp(1.15rem, 5vw, 1.6rem);
+}
+.overlay-card .primary-btn#overlayButton {
+  margin-top: 8px;
+  width: min(100%, 280px);
+}
+
+
+.bg-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 28;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #7dffef;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(125,255,239,0.35);
+  pointer-events: none;
+}
+.bg-chip.hidden { display: none !important; }
+
+
+/* Protect… lyrics rise from bottom of stage */
+.karaoke-line.current.scroll-up {
+  animation: lyricRise 2.6s cubic-bezier(0.16, 0.84, 0.28, 1) forwards;
+  will-change: transform, opacity;
+}
+@keyframes lyricRise {
+  from {
+    transform: translateY(48vh);
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+
+.end-score {
+  display: block;
+  margin: 4px 0 10px;
+  font-size: clamp(1.55rem, 7.5vw, 2.15rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow:
+    0 0 12px rgba(255, 46, 196, 0.95),
+    0 0 28px rgba(125, 255, 239, 0.65),
+    0 2px 0 #ff2ec4;
+}
+.end-stats {
+  display: block;
+  font-size: 0.85rem;
+  color: #ffd6f0;
+  line-height: 1.45;
+}
+#overlayMessage {
+  text-align: center;
+}
+
+
+/* PLAY AGAIN pin — always reachable on end screen */
+.overlay-card #overlayButton {
+  flex-shrink: 0;
+  display: inline-block;
+  margin-top: 12px;
+  position: sticky;
+  bottom: 8px;
+  z-index: 5;
+}
+.overlay-card #overlayButton.hidden,
+.overlay-card.menu-title #overlayButton,
+.overlay-card.menu-title #overlayButton.hidden {
+  display: none !important; /* sega31e: menu uses only INSERT TOKEN→START GAME */
+}
+.overlay-card {
+  padding-bottom: 20px;
+}
+
+
+/* ---- sega17: social links replace LEFT/RIGHT on menu + end ---- */
+.social-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 6px 0 0;
+  width: 100%;
+}
+.social-links.hidden { display: none !important; }
+.touch-controls.hidden { display: none !important; }
+
+.social-btn {
+  min-height: 88px;
+  border-radius: 14px;
+  border: 2px solid rgba(125, 255, 239, 0.4);
+  background:
+    linear-gradient(180deg, rgba(70, 10, 55, 0.95), rgba(16, 6, 28, 0.98));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: inset 0 0 24px rgba(255, 46, 196, 0.14);
+  -webkit-tap-highlight-color: transparent;
+}
+.social-btn img {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+.social-btn .label {
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+.social-btn.social-ig:active,
+.social-btn.social-spotify:active {
+  transform: scale(0.98);
+  border-color: var(--accent);
+}
+@media (min-height: 820px) {
+  .social-btn { min-height: 100px; }
+}
+@media (max-height: 640px) {
+  .social-btn { min-height: 72px; }
+}
+
+.secondary-btn {
+  background: rgba(20, 8, 32, 0.92);
+  border: 1px solid rgba(125, 255, 239, 0.45);
+  color: #7dffef;
+  min-width: 160px;
+  padding: 10px 14px;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+.secondary-btn.hidden { display: none !important; }
+.overlay-card.menu-title .secondary-btn {
+  flex-shrink: 0;
+}
+
+/* Hide high-score list until HIGH SCORES toggled (menu) */
+.high-score-list.hidden { display: none !important; }
+
+/* ---- sega17: Protect finale arcade FX ---- */
+.finale-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  overflow: hidden;
+}
+.finale-fx.hidden { display: none !important; }
+
+.finale-blood {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 38%;
+  background:
+    radial-gradient(ellipse 18% 55% at 12% 0%, rgba(180,0,30,0.95) 0%, rgba(180,0,30,0) 70%),
+    radial-gradient(ellipse 14% 70% at 28% 0%, rgba(220,10,40,0.9) 0%, rgba(220,10,40,0) 72%),
+    radial-gradient(ellipse 20% 60% at 48% 0%, rgba(160,0,24,0.92) 0%, rgba(160,0,24,0) 70%),
+    radial-gradient(ellipse 12% 80% at 66% 0%, rgba(255,20,50,0.88) 0%, rgba(255,20,50,0) 74%),
+    radial-gradient(ellipse 16% 58% at 82% 0%, rgba(190,0,28,0.9) 0%, rgba(190,0,28,0) 70%),
+    radial-gradient(ellipse 10% 90% at 94% 0%, rgba(140,0,20,0.85) 0%, rgba(140,0,20,0) 76%);
+  animation: bloodDrip 2.8s ease-in-out infinite alternate;
+  filter: saturate(1.25);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+}
+.finale-blood::before,
+.finale-blood::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 100%;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(180deg, #ff2244 0%, #8b0018 55%, transparent 100%);
+  animation: dripFall 1.8s linear infinite;
+  opacity: 0.85;
+}
+.finale-blood::before { left: 22%; animation-delay: 0.35s; width: 8px; }
+.finale-blood::after { left: 71%; animation-delay: 0.9s; width: 12px; }
+
+.finale-flames {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 28%;
+  background:
+    linear-gradient(0deg, rgba(255, 80, 0, 0.55) 0%, rgba(255, 40, 0, 0.2) 45%, transparent 100%),
+    repeating-linear-gradient(90deg,
+      transparent 0 10px,
+      rgba(255, 180, 0, 0.35) 10px 18px,
+      transparent 18px 28px,
+      rgba(255, 60, 0, 0.4) 28px 34px,
+      transparent 34px 46px);
+  animation: flameFlicker 0.28s steps(2, end) infinite;
+  mix-blend-mode: screen;
+  filter: saturate(1.4) brightness(1.1);
+}
+.finale-flames::before,
+.finale-flames::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 22%;
+  height: 100%;
+  background:
+    radial-gradient(ellipse 70% 100% at 50% 100%, rgba(255,220,80,0.95) 0%, rgba(255,90,0,0.65) 40%, transparent 72%);
+  animation: flameLick 0.45s ease-in-out infinite alternate;
+}
+.finale-flames::before { left: 8%; animation-delay: 0.1s; }
+.finale-flames::after { right: 12%; width: 28%; animation-delay: 0.22s; }
+
+@keyframes bloodDrip {
+  from { transform: translateY(-2%); opacity: 0.82; }
+  to { transform: translateY(4%); opacity: 0.95; }
+}
+@keyframes dripFall {
+  0% { transform: translateY(-12%); opacity: 0.5; }
+  40% { opacity: 0.95; }
+  100% { transform: translateY(18%); opacity: 0.7; }
+}
+@keyframes flameFlicker {
+  from { opacity: 0.78; filter: saturate(1.3) brightness(1.05); }
+  to { opacity: 1; filter: saturate(1.55) brightness(1.2); }
+}
+@keyframes flameLick {
+  from { transform: scaleY(0.92) translateY(4%); }
+  to { transform: scaleY(1.08) translateY(0); }
+}
+
+/* Keep mute pills readable next to brand */
+.topbar-branding .eyebrow {
+  font-size: clamp(0.95rem, 4.2vw, 1.25rem);
+}
+.topbar-branding .brand h1 {
+  font-size: clamp(0.68rem, 2.6vw, 0.88rem);
+  color: #d9b8e8;
+}
+
+
+/* ---- sega18: sax as canvas BG source during finale fight ---- */
+.karaoke-video.sax-bg-source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  left: -9999px;
+  top: 0;
+}
+.app-shell.sax-bg-active .finale-karaoke.sax-bg-mode {
+  display: none !important;
+}
+
+/* Keep sax reel vivid (bypass canvas dusk filter) during finale fight */
+.app-shell.sax-bg-active #canvas {
+  filter: none;
+}
+
+
+/* sega22: text-only BRAIN WATCH one line + Press Start 2P song title */
+.topbar-branding .brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+.topbar-branding .brand-logo { display: none !important; }
+.topbar-branding .brand-title {
+  margin: 0;
+  padding: 0;
+  font-family: Trebuchet MS, "Segoe UI", sans-serif;
+  font-size: clamp(0.95rem, 4.2vw, 1.28rem);
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  line-height: 1.05;
+  color: #ff2ec4;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow:
+    0 0 14px rgba(255, 46, 196, 0.65),
+    0 0 4px rgba(125, 255, 239, 0.35);
+}
+.topbar-branding .brand-song,
+.topbar-branding .brand h1.brand-song {
+  margin: 0;
+  padding: 0;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: clamp(0.42rem, 2.4vw, 0.58rem);
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  color: #7dffef;
+  text-shadow:
+    0 0 6px rgba(125, 255, 239, 0.55),
+    2px 2px 0 #1a0530;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.topbar-branding .eyebrow { display: none; }
+
+
+/* sega30 insert token */
+.overlay-card.menu-title #insertTokenButton.hidden,
+#insertTokenButton.hidden,
+#overlayButton.hidden {
+  display: none !important;
+}
+
+
+/* --- sega31 --- */
+.title-logo,
+.overlay-card.menu-title .title-logo {
+  width: min(80vw, 244px);
+  max-height: 31vh;
+}
+.death-flash.glow-green {
+  background: rgba(0, 40, 10, 0.5);
+  color: #39ff14;
+  text-shadow:
+    0 0 24px rgba(57, 255, 20, 0.95),
+    0 0 48px rgba(0, 255, 80, 0.7),
+    0 6px 20px rgba(0, 0, 0, 0.9);
+}
+.death-flash.glow-red {
+  /* default DEATH red kept */
+}
+.pause-btn, .ts-btn {
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(125,255,239,0.55);
+  background: rgba(10,5,20,0.75);
+  color: #7dffef;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 40;
+}
+.pause-btn { margin-left: 6px; }
+.ts-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 88px;
+}
+.pause-btn.paused-on {
+  color: #ff2ec4;
+  border-color: rgba(255,46,196,0.7);
+}
+.modal-overlay, .pause-ts-panel, .trainer-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.72);
+}
+/* sega31o: trainer above floating PAUSE (z60 outside .stage) */
+.trainer-panel {
+  z-index: 70;
+  position: fixed;
+  inset: 0;
+}
+.modal-overlay.hidden, .pause-ts-panel.hidden, .trainer-panel.hidden, .hq-toast.hidden, .pause-btn.hidden, .ts-btn.hidden {
+  display: none !important;
+}
+.modal-card, .pause-ts-card, .trainer-card {
+  width: min(92vw, 420px);
+  max-height: 80vh;
+  overflow: auto;
+  background: #14081c;
+  border: 1px solid rgba(255,46,196,0.45);
+  border-radius: 12px;
+  padding: 16px;
+  color: #f5e6ea;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+.modal-body {
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: system-ui, sans-serif;
+}
+.trainer-toggles label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  margin: 4px 0;
+  font-family: system-ui, sans-serif;
+}
+.hq-toast {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(10,40,20,0.92);
+  color: #39ff14;
+  border: 1px solid rgba(57,255,20,0.6);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  text-align: center;
+  pointer-events: none;
+}
+.pause-ts-display {
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  color: #7dffef;
+  text-align: center;
+}
+.winter-grayscale canvas,
+.winter-grayscale .stage {
+  filter: grayscale(1) contrast(1.08);
+}
+/* After nukeFlash: bright B&W → color (JS sets --nuke-bw / canvas filter; class is marker) */
+.nuke-postflash-bw canvas {
+  /* filter applied inline from ui.js for smooth lerp */
+}
+
+
+/* sega31b: obvious floating PAUSE */
+.pause-btn-float {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 60;
+  font-size: 11px !important;
+  padding: 10px 14px !important;
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 16px rgba(125, 255, 239, 0.35);
+  background: rgba(8, 4, 18, 0.92) !important;
+}
+.app-shell:not(.playing) .pause-btn-float {
+  display: none !important;
+}
+.app-shell.playing .pause-btn-float:not(.hidden) {
+  display: inline-block !important;
+}
+
+
+/* sega31o: trainer CLOSE via flex-shrink:0 (not sticky-dependent) */
+.trainer-card {
+  max-height: min(80vh, 640px);
+  overflow: hidden; /* only toggles scroll; CLOSE stays put */
+  display: flex;
+  flex-direction: column;
+}
+.trainer-toggles {
+  overflow: auto;
+  max-height: min(55vh, 420px);
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.trainer-card #trainerClose {
+  position: relative; /* not sticky-dependent */
+  z-index: 3;
+  margin-top: 8px;
+  flex-shrink: 0;
+  box-shadow: 0 -8px 16px rgba(0,0,0,0.55);
+  background: #14081c;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.trainer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  background: #14081c;
+  padding-bottom: 4px;
+}
+.trainer-head h3 { margin: 0; }
+.trainer-card #trainerCloseTop {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.pause-btn-float.trainer-open-hide {
+  display: none !important;
+}
+
+/* sega44: shown only while a run waits on the streaming music (song clock holds → lyrics stay in sync) */
+.music-buffering {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(10, 5, 18, 0.78);
+  border: 1px solid rgba(255, 46, 196, 0.45);
+  color: #ffe36e;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  pointer-events: none;
+}
