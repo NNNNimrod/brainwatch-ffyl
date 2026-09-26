@@ -17,6 +17,8 @@
     var c = cfg(state);
     var start = c.saxBgStartSec != null ? c.saxBgStartSec : 120.5;
     var end = c.saxBgEndSec != null ? c.saxBgEndSec : 155;
+    // sega45: saxBgEnabled=false → diamond2 shows the pinned violet Austin plate (Facts pin map)
+    if (c.saxBgEnabled === false) { start = -1; end = -1; }
     // Keep Sections.SAX_VIDEO in sync for UI/video loader
     if (ns.Sections && ns.Sections.SAX_VIDEO) {
       ns.Sections.SAX_VIDEO.start = start;
@@ -48,8 +50,18 @@
     state._tunnelApproachCleared = false;
     state._tunnelHideRoadside = false;
     state._tunnelDodgeAcc = 0;
-    state._tunnelCenterRushAcc = 0;
-    state._cyberFlyAcc = 0;
+    state._tunnelLaneAcc = 0;
+    state._tunnelLaneLastT = -99;
+    state._tunnelLaneLastLane = null;
+    state._tunnelWhite = 0;
+    state._tunnelWhiteCleared = false;
+    state._tunnelCityAlpha = 1;
+    state._tunnelMouthAlpha = 0;
+    state.skyBolts = [];
+    state._skyFlash = 0;
+    state._skyNextBolt = 0;
+    state._skyNextFlash = 0;
+    state._skyStormMode = null;
     state._tunnelPath = null;
     state._tunnelDownhillAmp = 0;
     state._tunnelForceElev2 = false;
@@ -62,7 +74,7 @@
     state._tunnelBlackFade = 0;
     state._tunnelPlayerOffX = 0;
     state._tunnelPlayerOffY = 0;
-    state._tunnelPhase = null; // freeze|shrinkIn|blackIn|inside|shrinkOut|blackOut|roadWait|done
+    state._tunnelPhase = null; // freeze|shrinkIn|blackIn|blackHold|inside|shrinkOut|whiteUp|whiteDown|done
     state._tunnelRoadRestoreAt = null;
     state._tunnelFullBleed = false;
     state.partyCrashWeatherActive = false;
@@ -106,7 +118,7 @@
   function updateChorus1Brains(state, dt, t) {
     var c = cfg(state);
     if (!ns.Brains || !ns.Brains.spawnBrain) return;
-    if (state.finaleFight || state.finaleMode === "fight" || state.inTunnel) return;
+    if (state.finaleFight || state.finaleMode === "fight" || state.inTunnel || state.tunnelApproaching) return;
 
     var c1At = c.chorus1MediumAtSec != null ? c.chorus1MediumAtSec : 59;
     if (!state._chorus1MediumSpawned && t >= c1At && (c.chorus1MediumSpawnTinies !== false)) {
@@ -207,7 +219,15 @@
     var exitShrinkDur = c.tunnelExitShrinkDurSec != null ? c.tunnelExitShrinkDurSec : 2.5;
     var exitBlackDur = c.tunnelExitBlackDurSec != null ? c.tunnelExitBlackDurSec : 0.4;
     var roadDelay = c.tunnelRoadDelaySec != null ? c.tunnelRoadDelaySec : 3.0;
-    return { freeze: freezeStart, restore: exit + exitShrinkDur + exitBlackDur + roadDelay };
+    var shrinkEnd = exit + exitShrinkDur;
+    if (c.tunnelExitWhiteout !== false) {
+      // sega45: white-out replaces black exit + road delay; road/world restored at white peak
+      var up = Math.max(0.02, c.tunnelExitWhiteUpSec != null ? c.tunnelExitWhiteUpSec : 0.3);
+      var down = Math.max(0.02, c.tunnelExitWhiteDownSec != null ? c.tunnelExitWhiteDownSec : 1.0);
+      return { freeze: freezeStart, shrinkEnd: shrinkEnd, whitePeak: shrinkEnd + up, whiteEnd: shrinkEnd + up + down,
+        restore: shrinkEnd + up, white: true };
+    }
+    return { freeze: freezeStart, shrinkEnd: shrinkEnd, restore: shrinkEnd + exitBlackDur + roadDelay, white: false };
   }
 
   function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
@@ -362,7 +382,7 @@
       } else {
         ent.img = new Image();
         ent.img.onload = function() { ent.img._loadState = "ok"; opts.onload(ent.img); };
-        ent.img.src = src + (src.indexOf('?') >= 0 ? '' : '?v=sega44');
+        ent.img.src = src + (src.indexOf('?') >= 0 ? '' : '?v=sega45');
       }
     }
     var ent = c.tunnelEntranceAsset || 'images/fx/tunnel-entrance.png';
@@ -467,144 +487,73 @@
     return state.width / 2 + offsets[idx] * state.width * 0.22;
   }
 
-  function spawnTunnelDodgeBrain(state) {
+  // sega45 E: tunnel brains — come from the horizon into a random left/right lane, randomly tiny or
+  // medium, and travel that LOCKED lane toward her like cybercabs. Dodge by switching lanes or shoot.
+  // No hover / wind-up / homing. Never both lanes blocked: a brain in the OTHER lane may not spawn
+  // within tunnelBrainMinGapSec of the previous one (else it goes in the same lane).
+  function spawnTunnelLaneBrain(state, t) {
     var c = cfg(state);
     if (!ns.Brains || !ns.Brains.spawnBrain) return null;
-    var lane = (c.tunnelDodgeRandomLane !== false)
-      ? (Math.random() < 0.5 ? 0 : 1)
-      : (state.lane != null ? state.lane : 0);
-    var h = state.height || 720;
-    var horizonY = (state._roadHorizonY != null) ? state._roadHorizonY : (h * 0.42);
-    // Spawn near vanishing/horizon band; grow toward player
-    var brain = ns.Brains.spawnBrain(state, {
-      medium: true,
-      kind: (c.tunnelDodgeBrainKind || 'medium'),
-      x: laneScreenXLocal(state, lane),
-      y: Math.max(40, horizonY - 8),
-      sizeScale: (state.config && state.config.mediumBrainScale != null) ? state.config.mediumBrainScale : 1.25,
-      startScale: 0.03,
-      fastGrow: false
-    });
-    if (!brain) return null;
-    brain.tunnelDodge = true;
-    brain.noFight = true;
-    brain.vx = 0;
-    brain.lane = lane;
-    brain.attackLane = lane;
-    brain.zapTimer = 99999;
-    brain.postGrowDelay = 99999;
-    brain.telegraph = 0;
-    brain.kamikaze = false;
-    brain.approach = 0.03;
-    brain.approachSpeed = 1 / 1.65;
-    brain.baseY = Math.max(40, horizonY - 8);
-    brain.y = brain.baseY;
-    // Drift slightly toward mid-playfield while approaching
-    brain.targetBaseY = h * 0.50;
-    var bobFrac = c.tunnelDodgeBobAmp != null ? c.tunnelDodgeBobAmp : 0.03;
-    brain.bobAmp = h * bobFrac;
-    brain.bobHz = c.tunnelDodgeBobHz != null ? c.tunnelDodgeBobHz : 0.7;
-    brain.bobPhase = Math.random() * Math.PI * 2;
-    brain._tunnelHitDone = false;
-    return brain;
-  }
-
-
-  function countTunnelCenterRush(state) {
-    var n = 0, i, b;
-    if (!state.brains) return 0;
-    for (i = 0; i < state.brains.length; i++) {
-      b = state.brains[i];
-      if (b && b.alive && b.tunnelCenterRush) n++;
+    var lane = Math.random() < 0.5 ? 0 : 1;
+    var minGap = c.tunnelBrainMinGapSec != null ? c.tunnelBrainMinGapSec : 0.8;
+    if (state._tunnelLaneLastLane != null && lane !== state._tunnelLaneLastLane &&
+        (t - (state._tunnelLaneLastT || -99)) < minGap) {
+      lane = state._tunnelLaneLastLane;
     }
-    return n;
-  }
-
-  function spawnTunnelCenterRushBrain(state) {
-    var c = cfg(state);
-    if (!ns.Brains || !ns.Brains.spawnBrain) return null;
+    var tiny = Math.random() < (c.tunnelBrainTinyChance != null ? c.tunnelBrainTinyChance : 0.5);
     var w = state.width || 640;
     var h = state.height || 720;
-    var cx = w * 0.5;
-    var horizonY = (state._roadHorizonY != null) ? state._roadHorizonY : (h * 0.42);
-    // Vanishing-point / screen-center origin (not lane-based horizon spawn)
-    var cy = horizonY;
-    var scale = c.tunnelCenterRushScale != null ? c.tunnelCenterRushScale : 0.32;
-    var rushSpd = c.tunnelCenterRushApproachSpeed != null ? c.tunnelCenterRushApproachSpeed : 0.72;
+    var path = state._tunnelPath;
+    var vpX = w * (path && path.vpX != null ? path.vpX : 0.5);
+    var vpY = h * (path && path.vpY != null ? path.vpY : 0.48);
     var brain = ns.Brains.spawnBrain(state, {
-      tiny: true,
-      kind: 'tiny',
-      x: cx,
-      y: cy,
-      sizeScale: scale,
-      startScale: 0.04,
-      fastGrow: false
+      tiny: tiny,
+      medium: !tiny,
+      kind: tiny ? "tiny" : "medium",
+      x: vpX,
+      y: vpY,
+      sizeScale: tiny ? (c.tunnelBrainTinyScale != null ? c.tunnelBrainTinyScale : 0.5)
+        : (c.tunnelBrainMediumScale != null ? c.tunnelBrainMediumScale : 1.25),
+      startScale: 0.05
     });
     if (!brain) return null;
-    brain.tunnelCenterRush = true;
+    brain.tunnelLane = true;
     brain.noFight = true;
+    brain.lane = lane;
+    brain.attackLane = lane;
+    brain.laneU = 0;
+    brain.laneSpeed = c.tunnelBrainSpeed != null ? c.tunnelBrainSpeed : 0.6;
     brain.vx = 0;
-    brain.spawnCx = cx;
-    brain.spawnCy = cy;
-    brain.x = cx;
-    brain.y = cy;
-    brain.baseY = cy;
-    brain.approach = 0.04;
-    brain.approachSpeed = rushSpd;
-    brain.rushSpeed = rushSpd;
     brain.zapTimer = 99999;
     brain.postGrowDelay = 99999;
     brain.telegraph = 0;
     brain.kamikaze = false;
-    brain.bobAmp = h * 0.008;
-    brain.bobPhase = Math.random() * Math.PI * 2;
     brain._tunnelHitDone = false;
-    brain.lane = state.lane != null ? state.lane : 0;
-    brain.attackLane = brain.lane;
-    brain._aimX = cx;
-    brain._aimY = cy;
-    // sega43: fair tinies — appear (harmless fade/scale-in) → hover queue → wind-up → one launch
-    brain.rushPhase = 'appear';
-    brain.rushT = 0;
-    brain.fadeAlpha = 0;
-    brain.hoverSlot = pickTinySlot(state);
+    state._tunnelLaneLastLane = lane;
+    state._tunnelLaneLastT = t;
     return brain;
   }
 
-  function pickTinySlot(state) {
-    var used = {}, i, b;
-    for (i = 0; i < (state.brains || []).length; i++) {
-      b = state.brains[i];
-      if (b && b.alive && b.tunnelCenterRush && (b.rushPhase === 'appear' || b.rushPhase === 'hover' || b.rushPhase === 'windup')) used[b.hoverSlot] = true;
-    }
-    var order = [0, 1, 2, 3, 4];
-    for (i = 0; i < order.length; i++) if (!used[order[i]]) return order[i];
-    return 0;
-  }
-
-  function countTinyQueued(state) {
-    var n = 0, i, b;
-    for (i = 0; i < (state.brains || []).length; i++) {
-      b = state.brains[i];
-      if (b && b.alive && b.tunnelCenterRush && b.rushPhase !== 'launch') n++;
-    }
-    return n;
-  }
-
-  function tickTunnelCenterRushSpawn(state, dt) {
+  function tickTunnelLaneBrains(state, dt, t) {
     var c = cfg(state);
-    if (c.tunnelCenterRushEnabled === false) return;
-    var every = c.tunnelCenterRushSpawnEverySec != null ? c.tunnelCenterRushSpawnEverySec : 0.75;
+    if (c.tunnelBrainsEnabled === false) return;
+    var every = c.tunnelBrainSpawnEverySec != null ? c.tunnelBrainSpawnEverySec : 0.9;
     if (!(every > 0)) return;
-    state._tunnelCenterRushAcc = (state._tunnelCenterRushAcc || 0) + dt;
-    var maxActive = c.tunnelCenterRushMaxActive != null ? c.tunnelCenterRushMaxActive : 7;
-    while (state._tunnelCenterRushAcc >= every) {
-      state._tunnelCenterRushAcc -= every;
-      var maxQ = c.tinyBrainMaxQueued != null ? c.tinyBrainMaxQueued : 3;
-      if (countTunnelCenterRush(state) < maxActive && countTinyQueued(state) < maxQ) {
-        spawnTunnelCenterRushBrain(state);
-      }
+    state._tunnelLaneAcc = (state._tunnelLaneAcc || 0) + dt;
+    if (state._tunnelLaneAcc >= every) {
+      state._tunnelLaneAcc = -Math.random() * every * 0.25; // slight jitter, never faster than every
+      spawnTunnelLaneBrain(state, t);
     }
+  }
+
+  function clearTunnelBrains(state) {
+    if (!state.brains || !state.brains.length) return;
+    var i, b;
+    for (i = state.brains.length - 1; i >= 0; i--) {
+      b = state.brains[i];
+      if (b && (b.tunnelLane || b.tunnelDodge || b.tunnelCenterRush)) { b.alive = false; b.hp = 0; b.exitShrink = false; }
+    }
+    state.brains = state.brains.filter(function(br) { return br && (br.alive || br.bossDying || br.isBoss); });
   }
 
   function forceTunnelElev(state, tier) {
@@ -680,27 +629,28 @@
   function updateTunnel(state, dt, t) {
     var c = cfg(state);
     var approachOn = c.tunnelApproachEnabled !== false;
-    // sega35 voice redesign: fixed mouth + player shrink-in/out (always visible) + delayed road
+    // sega35 voice redesign: fixed mouth + player shrink-in/out (always visible)
+    // sega45: 3 s earlier (freeze 84.5 / mouth full 87.5 / enter 90.5), exit shrink 104.32→106.82,
+    // then a WHITE-OUT (up/down) replaces the black exit cover + road delay.
     var freezeStart = c.tunnelFreezeStartSec != null ? c.tunnelFreezeStartSec
-      : (c.tunnelApproachStartSec != null ? c.tunnelApproachStartSec : 87.5);
-    var enter = c.tunnelEnterSec != null ? c.tunnelEnterSec : 93.5;
-    var exit = c.tunnelExitSec != null ? c.tunnelExitSec : 103.44;
+      : (c.tunnelApproachStartSec != null ? c.tunnelApproachStartSec : 84.5);
+    var enter = c.tunnelEnterSec != null ? c.tunnelEnterSec : 90.5;
+    var exit = c.tunnelExitSec != null ? c.tunnelExitSec : 104.32;
     var shrinkDur = c.tunnelPlayerShrinkDurSec != null ? c.tunnelPlayerShrinkDurSec : 2.8;
     var blackDur = c.tunnelBlackDurSec != null ? c.tunnelBlackDurSec : 0.45;
     var exitShrinkDur = c.tunnelExitShrinkDurSec != null ? c.tunnelExitShrinkDurSec : 2.5;
-    var exitBlackDur = c.tunnelExitBlackDurSec != null ? c.tunnelExitBlackDurSec : 0.4;
-    var roadDelay = c.tunnelRoadDelaySec != null ? c.tunnelRoadDelaySec : 3.0;
     var minScale = c.tunnelPlayerMinScale != null ? c.tunnelPlayerMinScale : 0.12;
     var mouthScale = c.tunnelMouthFixedScale != null ? c.tunnelMouthFixedScale : 0.55;
-    var visibleSec = c.tunnelEntranceVisibleSec != null ? c.tunnelEntranceVisibleSec : 90.5;
-    // sega43: entry move at tunnelEnterSpeedMult (0.5 = half speed = 2x duration); black-in stays
-    // glued to its end and tunnelEnterSec (full entry) is unchanged, so inside time is not cut.
+    var visibleSec = c.tunnelEntranceVisibleSec != null ? c.tunnelEntranceVisibleSec : 87.5;
     var enterMult = c.tunnelEnterSpeedMult != null ? c.tunnelEnterSpeedMult : 1;
     if (enterMult > 0) shrinkDur = shrinkDur / enterMult;
-    // sega43: pure-black hold after full entry; interior starts later (exit cue fixed → trims interior start)
     var holdSec = Math.max(0, c.tunnelBlackHoldSec != null ? c.tunnelBlackHoldSec : 0);
     var interiorStart = Math.min(enter + holdSec, exit);
     var exitFadeSec = Math.max(0, c.tunnelExitFadeInSec != null ? c.tunnelExitFadeInSec : 0);
+    var tt = tunnelTimes(state);
+    var whiteOn = !!tt.white;
+    var exitBlackDur = c.tunnelExitBlackDurSec != null ? c.tunnelExitBlackDurSec : 0.4;
+    var roadDelay = c.tunnelRoadDelaySec != null ? c.tunnelRoadDelaySec : 3.0;
 
     // Derive shrink-in window so black ends at tunnelEnterSec
     var blackInStart = enter - blackDur;
@@ -709,7 +659,10 @@
     shrinkDur = Math.max(0.05, blackInStart - shrinkInStart);
     var exitShrinkEnd = exit + exitShrinkDur;
     var exitBlackEnd = exitShrinkEnd + exitBlackDur;
-    var roadRestoreAt = exitBlackEnd + roadDelay;
+    var roadRestoreAt = tt.restore;
+    var whitePeak = whiteOn ? tt.whitePeak : exitBlackEnd;
+    var whiteEnd = whiteOn ? tt.whiteEnd : exitBlackEnd;
+    var seqEnd = whiteOn ? whiteEnd : (exitBlackEnd + roadDelay);
 
     var was = !!state.inTunnel;
     ensureTunnelImages(state);
@@ -719,6 +672,7 @@
     state._tunnelHideRoad = false;
     state.tunnelExiting = false;
     state._tunnelBlackFade = 0;
+    state._tunnelWhite = 0;
     state._tunnelPlayerOffX = 0;
     state._tunnelPlayerOffY = 0;
 
@@ -729,6 +683,8 @@
       state._tunnelPlayerScale = 1;
       state._tunnelPlayerShrink = 0;
       state._tunnelExitShrink = 0;
+      state._tunnelCityAlpha = 1;
+      state._tunnelMouthAlpha = 0;
       state._tunnelPhase = state.inTunnel ? 'inside' : null;
       return;
     }
@@ -736,6 +692,7 @@
     // --- Clear traffic / brains once freeze begins ---
     if (t >= freezeStart && t < roadRestoreAt) {
       if (!state._tunnelApproachCleared) clearApproachWindow(state);
+      state.sectionBrains = false; // sega45: no open-road brains over the mouth / in the tunnel
       state.sectionTraffic = false;
       state._spawnCarsFromHorizon = false;
       if (c.tunnelApproachClearRoadside !== false) state._tunnelHideRoadside = true;
@@ -746,6 +703,7 @@
     var shrinkU = 0;
     var exitU = 0;
     var blackFade = 0;
+    var white = 0;
     var approaching = false;
     var inTunnel = false;
     var exiting = false;
@@ -755,20 +713,16 @@
     if (t < freezeStart) {
       phase = null;
     } else if (t < shrinkInStart) {
-      // Mouth fixed, road frozen, player full size
       phase = 'freeze';
       approaching = true;
       freezeRoad = true;
     } else if (t < blackInStart) {
-      // Player shrinks toward fixed mouth (sprite stays visible)
       phase = 'shrinkIn';
       approaching = true;
       freezeRoad = true;
       shrinkU = Math.max(0, Math.min(1, (t - shrinkInStart) / Math.max(0.05, shrinkDur)));
-      var easeIn = easeInOutCubic(shrinkU);
-      playerScale = 1 - (1 - minScale) * easeIn;
+      playerScale = 1 - (1 - minScale) * easeInOutCubic(shrinkU);
     } else if (t < enter) {
-      // Black cover into interior
       phase = 'blackIn';
       approaching = true;
       freezeRoad = true;
@@ -777,7 +731,6 @@
       shrinkU = 1;
       blackFade = Math.max(0, Math.min(1, (t - blackInStart) / Math.max(0.05, blackDur)));
     } else if (t < interiorStart) {
-      // sega43: pure-black hold — nothing drawn/spawned/moving (renderer paints black over all)
       phase = 'blackHold';
       freezeRoad = true;
       hideRoad = true;
@@ -785,24 +738,36 @@
       shrinkU = 1;
       blackFade = 1;
     } else if (t < exit) {
-      // Inside procedural tunnel — player full size, always drawn
       phase = 'inside';
       inTunnel = true;
       freezeRoad = true;
       hideRoad = true;
       playerScale = 1;
-      shrinkU = 0;
     } else if (t < exitShrinkEnd) {
-      // Exit mirror: shrink into distance while still on interior
       phase = 'shrinkOut';
       inTunnel = true;
       exiting = true;
       freezeRoad = true;
       hideRoad = true;
       exitU = Math.max(0, Math.min(1, (t - exit) / Math.max(0.05, exitShrinkDur)));
-      var easeOut = easeInOutCubic(exitU);
-      playerScale = 1 - (1 - minScale) * easeOut;
-    } else if (t < exitBlackEnd) {
+      playerScale = 1 - (1 - minScale) * easeInOutCubic(exitU);
+    } else if (whiteOn && t < whitePeak) {
+      // sega45: white rises over the (still drawn) interior; she stays tiny at the far end
+      phase = 'whiteUp';
+      inTunnel = true;
+      exiting = true;
+      freezeRoad = true;
+      hideRoad = true;
+      playerScale = minScale;
+      exitU = 1;
+      white = Math.max(0, Math.min(1, (t - exitShrinkEnd) / Math.max(0.02, whitePeak - exitShrinkEnd)));
+    } else if (whiteOn && t < whiteEnd) {
+      // sega45: under full white everything tunnel is hard-cleared; green plate + RUNNING road only,
+      // she is back at tier 1, normal size, in her lane
+      phase = 'whiteDown';
+      playerScale = 1;
+      white = Math.max(0, Math.min(1, 1 - (t - whitePeak) / Math.max(0.02, whiteEnd - whitePeak)));
+    } else if (!whiteOn && t < exitBlackEnd) {
       phase = 'blackOut';
       exiting = true;
       freezeRoad = true;
@@ -810,19 +775,13 @@
       playerScale = minScale;
       exitU = 1;
       blackFade = Math.max(0, Math.min(1, (t - exitShrinkEnd) / Math.max(0.05, exitBlackDur)));
-    } else if (t < roadRestoreAt) {
-      // After exit: exterior without road scroll for +roadDelaySec
-      // sega40: NO post-exit mouth — approaching stays false (mouth was approach-only)
+    } else if (!whiteOn && t < roadRestoreAt) {
       phase = 'roadWait';
       freezeRoad = true;
       hideRoad = true;
       playerScale = 1;
       exitU = 1;
-      approaching = false;
-      // sega43: fade up from black onto the NEW post-tunnel BG (was a hard cut)
-      if (exitFadeSec > 0) {
-        blackFade = Math.max(0, 1 - (t - exitBlackEnd) / exitFadeSec);
-      }
+      if (exitFadeSec > 0) blackFade = Math.max(0, 1 - (t - exitBlackEnd) / exitFadeSec);
     } else {
       phase = 'done';
       playerScale = 1;
@@ -838,29 +797,33 @@
     state._tunnelPlayerShrink = shrinkU;
     state._tunnelExitShrink = exitU;
     state._tunnelBlackFade = blackFade;
+    state._tunnelWhite = white;
     state.tunnelApproachScale = mouthScale;
     state.tunnelApproachProgress = approaching
-      ? Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, enter - freezeStart)))
-      : (phase === 'roadWait' ? 1 : 0);
-    // sega40: mouth ONLY during approach (freeze/shrinkIn/blackIn). Off on enter + after exit.
+      ? Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, enter - freezeStart))) : 0;
     state.tunnelEntranceVisible = !!approaching;
-    if (phase === 'inside' || phase === 'shrinkOut' || phase === 'blackOut' || phase === 'roadWait' || phase === 'done') {
-      state.tunnelEntranceVisible = false;
-      state.tunnelApproaching = false;
-      approaching = false;
+
+    // sega45: mouth fades in freeze → tunnelEntranceVisibleSec while the city plate fades to black;
+    // no city behind the mouth, none through the tunnel, green plate appears under the white peak.
+    var fadeU = Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, visibleSec - freezeStart)));
+    state._tunnelMouthAlpha = approaching ? (c.tunnelMouthFadeIn === false ? 1 : fadeU) : 0;
+    if (c.tunnelCityFadeOut === false) {
+      state._tunnelCityAlpha = 1;
+    } else if (t < freezeStart || t >= whitePeak || phase === 'done' || phase === 'whiteDown' || phase === 'roadWait') {
+      state._tunnelCityAlpha = 1;
+    } else {
+      state._tunnelCityAlpha = 1 - fadeU;
     }
 
     // Player offset toward mouth / interior VP while shrinking (screen-space hint for renderer)
-    if (shrinkU > 0 || (exitU > 0 && (phase === 'shrinkOut' || phase === 'blackOut'))) {
+    if (shrinkU > 0 || (exitU > 0 && (phase === 'shrinkOut' || phase === 'whiteUp' || phase === 'blackOut'))) {
       var u = shrinkU > 0 ? shrinkU : exitU;
-      var ease = easeInOutCubic(u);
-      // Move toward horizon vanishing point (up-screen); X stays centered
-      state._tunnelPlayerOffY = -ease * 0.42; // fraction of height upward
+      state._tunnelPlayerOffY = -easeInOutCubic(u) * 0.42;
       state._tunnelPlayerOffX = 0;
     }
 
     // Force elev on approach / inside
-    if (approaching && state.tunnelEntranceVisible && c.tunnelForceTier1OnEntranceVisible !== false) {
+    if (approaching && c.tunnelForceTier1OnEntranceVisible !== false) {
       forceTunnelElev(state, 1);
       state._tunnelForceElev2 = false;
     }
@@ -887,17 +850,13 @@
         state.cars = [];
       }
       state._tunnelHeartAcc = 0;
-      // sega38: clear any falling hearts on enter (no hearts in tunnel)
       if (state.pickups && state.pickups.length) state.pickups = [];
       state._tier3HeartBurst = 0;
       state._tunnelFractalPhase = 0;
       state._tunnelInteriorPhase = 0;
-      state._tunnelDodgeAcc = 0;
-      state._tunnelCenterRushAcc = 0;
-      state._cyberFlyAcc = 0;
-      if (ns.CyberFlies && ns.CyberFlies.clearAll) ns.CyberFlies.clearAll(state);
-      else state.cyberFlies = [];
+      state._tunnelLaneAcc = 0;
       state._tunnelFullBleed = false;
+      state._tunnelWhiteCleared = false;
     }
 
     // sega43: black hold — despawn everything once, block spawns/motion
@@ -924,92 +883,69 @@
     }
     state._tunnelInteriorStart = interiorStart;
 
-    // Leave interior after blackOut starts (was inTunnel)
-    if (!inTunnel && was) {
+    // sega45: HARD CLEAR under the white peak (or legacy: when the interior ends)
+    if ((!inTunnel && was) || (phase === 'whiteDown' && !state._tunnelWhiteCleared)) {
+      state._tunnelWhiteCleared = true;
       state._tunnelExited = true;
       state._tunnelForceElev2 = false;
       state._tunnelPath = null;
-      state._tunnelDodgeAcc = 0;
-      state._tunnelCenterRushAcc = 0;
-      if (state.brains && state.brains.length) {
-        var bi, bb;
-        for (bi = state.brains.length - 1; bi >= 0; bi--) {
-          bb = state.brains[bi];
-          if (bb && (bb.tunnelDodge || bb.tunnelCenterRush)) {
-            bb.alive = false;
-            bb.hp = 0;
-          }
-        }
-        state.brains = state.brains.filter(function(br) {
-          return br && (br.alive || br.bossDying || br.isBoss);
-        });
+      state._tunnelLaneAcc = 0;
+      state._tunnelInteriorPhase = 0;
+      state._tunnelFractalPhase = 0;
+      state._tunnelMouthRect = null;
+      state._tunnelMouthAlpha = 0;
+      state.tunnelEntranceVisible = false;
+      state.tunnelApproaching = false;
+      clearTunnelBrains(state);
+      despawnBrainsSilent(state);
+      if (state.pickups && state.pickups.length) state.pickups = [];
+      if (whiteOn) {
+        // respawn: tier 1, normal size, in her lane, road scrolling — nothing inherited
+        var tier = c.tunnelExitRespawnTier != null ? c.tunnelExitRespawnTier : 1;
+        forceTunnelElev(state, tier);
+        state.elevFloatHoldTimer = 0;
+        state.tier2AloftTimer = 0;
+        if (ns.State && ns.State.laneOffset) state.playerX = ns.State.laneOffset(state, state.lane || 0);
+        state._tunnelPlayerScale = 1;
+        state._tunnelPlayerShrink = 0;
+        state._tunnelExitShrink = 0;
+        state._tunnelHideRoadside = false;
+        state._tunnelApproachCleared = false;
       }
-      // sega38: clear cyber-flies on tunnel exit
-      if (ns.CyberFlies && ns.CyberFlies.clearAll) ns.CyberFlies.clearAll(state);
-      else state.cyberFlies = [];
-      state._cyberFlyAcc = 0;
     }
 
     // Inside gameplay
     if (inTunnel && phase === 'inside') {
       state.sectionTraffic = false;
+      state.sectionBrains = false; // only tunnel lane runners in here
       state._spawnCarsFromHorizon = false;
       state._tunnelHideRoadside = true;
       state._tunnelFractalPhase = (state._tunnelFractalPhase || 0) + dt;
       state._tunnelInteriorPhase = (state._tunnelInteriorPhase || 0) + dt;
       if (c.tunnelInteriorPathEnabled !== false) computeTunnelPath(state, t);
       if (c.tunnelForceElevTier2 !== false) forceTunnelElev(state, 2);
-
-      // sega38: tunnel hearts OFF by default (tunnelHeartsEnabled=false)
-      if (c.tunnelHeartsEnabled === true) {
-        var every = c.tunnelHeartEverySec != null ? c.tunnelHeartEverySec : 1.0;
-        state._tunnelHeartAcc = (state._tunnelHeartAcc || 0) + dt;
-        if (every > 0 && state._tunnelHeartAcc >= every) {
-          state._tunnelHeartAcc -= every;
-          if (ns.Sections && ns.Sections.spawnPickup) {
-            ns.Sections.spawnPickup(state, { forceSpawn: true, allowMadMax: true, allowTunnel: true });
-          }
-        }
-      } else {
-        state._tunnelHeartAcc = 0;
-      }
-
-      if (c.tunnelDodgeBrainsEnabled !== false) {
-        var spawnEvery = c.tunnelDodgeSpawnEverySec != null ? c.tunnelDodgeSpawnEverySec : 2.0;
-        state._tunnelDodgeAcc = (state._tunnelDodgeAcc || 0) + dt;
-        if (spawnEvery > 0 && state._tunnelDodgeAcc >= spawnEvery) {
-          state._tunnelDodgeAcc -= spawnEvery;
-          spawnTunnelDodgeBrain(state);
-        }
-      }
-
-      // sega39: tiny brains rush from screen center (replaces cyber-flies)
-      // cyber-flies disabled via cyberFlyEnabled=false; keep clear hooks only
-      if (c.cyberFlyEnabled === true) {
-        if (ns.CyberFlies && ns.CyberFlies.tickSpawn) {
-          ns.CyberFlies.tickSpawn(state, dt);
-        }
-      }
-      tickTunnelCenterRushSpawn(state, dt);
-    } else if (inTunnel && (phase === 'shrinkOut' || phase === 'blackOut')) {
-      // Keep interior anim alive during exit shrink; stop new dodge spawns
+      state._tunnelHeartAcc = 0; // sega45 F: never hearts in the tunnel
+      tickTunnelLaneBrains(state, dt, t);
+    } else if (inTunnel && (phase === 'shrinkOut' || phase === 'whiteUp')) {
+      // Keep interior anim alive during exit shrink; no new spawns
       state._tunnelFractalPhase = (state._tunnelFractalPhase || 0) + dt;
       state._tunnelInteriorPhase = (state._tunnelInteriorPhase || 0) + dt;
       if (c.tunnelInteriorPathEnabled !== false) computeTunnelPath(state, t);
       state.sectionTraffic = false;
+      state.sectionBrains = false;
       state._spawnCarsFromHorizon = false;
       state._tunnelHideRoadside = true;
     }
 
     // Restore roadside after full sequence
-    if (phase === 'done' || t >= roadRestoreAt || t < freezeStart) {
-      if (t < freezeStart || t >= roadRestoreAt) {
-        state._tunnelHideRoadside = false;
-        state._tunnelApproachCleared = false;
-      }
+    if (t < freezeStart || t >= roadRestoreAt) {
+      state._tunnelHideRoadside = false;
+      state._tunnelApproachCleared = false;
     }
+    if (t < freezeStart) state._tunnelWhiteCleared = false;
 
     state._tunnelRoadRestoreAt = roadRestoreAt;
+    state._tunnelSeqEnd = seqEnd;
   }
 
   function smashBrainsOnHill(state) {
@@ -1033,28 +969,150 @@
     state.lightningBolts = [];
   }
 
-  // --- B) Party-crash weather ---
-  function updatePartyCrashWeather(state, dt, t) {
+  // --- B) Party-crash storm (sega45: heavier) + J) boss lightning — SKY-ONLY bolts/flashes ---
+  // Bolts live in plate-normalized coords (u 0..1 across the plate, v 0..1 down it) and are drawn by
+  // the renderer inside the plate's sky mask (above the skyline silhouette) BEFORE road/sprites, so
+  // they never cover player / cars / brains / hearts and read as "behind the skyline".
+  function skyStormMode(state, t) {
     var c = cfg(state);
-    if (c.partyCrashWeatherEnabled === false) {
-      state.partyCrashWeatherActive = false;
-      return;
+    if (c.partyCrashWeatherEnabled !== false && c.partyCrashLightning !== false) {
+      var at = c.partyCrashWeatherAtSec != null ? c.partyCrashWeatherAtSec : 28.02;
+      var dur = c.partyCrashWeatherDurationSec != null ? c.partyCrashWeatherDurationSec : 12;
+      if (t >= at && t < at + dur) return "party";
     }
-    var at = c.partyCrashWeatherAtSec != null ? c.partyCrashWeatherAtSec : 28.02;
-    var dur = c.partyCrashWeatherDurationSec != null ? c.partyCrashWeatherDurationSec : 12;
-    state.partyCrashWeatherActive = t >= at && t < at + dur;
-    if (!state.partyCrashWeatherActive) {
-      state._partyCrashFlash = Math.max(0, (state._partyCrashFlash || 0) - dt * 4);
-      return;
+    if (c.bossLightningEnabled !== false && (state.finaleFight || state.finaleMode === "fight") &&
+        !state.bossDefeatBeat && !state.finaleWon && !state.finaleLost && state.finaleMode !== "karaoke") {
+      return "boss";
     }
-    state._partyCrashNextBolt = (state._partyCrashNextBolt || 0) - dt;
-    if (c.partyCrashLightning !== false && state._partyCrashNextBolt <= 0) {
-      state._partyCrashFlash = 0.18 + Math.random() * 0.22;
-      state._partyCrashNextBolt = 0.6 + Math.random() * 1.8;
+    return null;
+  }
+
+  function makeBolt(u0, vEnd, life) {
+    var pts = [{ u: u0, v: -0.03 }];
+    var n = 7 + Math.floor(Math.random() * 5);
+    var i, u = u0, v = -0.03;
+    for (i = 1; i <= n; i++) {
+      v = -0.03 + (vEnd + 0.03) * (i / n);
+      u += (Math.random() - 0.5) * 0.06;
+      pts.push({ u: u, v: v });
     }
-    if (state._partyCrashFlash > 0) {
-      state._partyCrashFlash = Math.max(0, state._partyCrashFlash - dt * 3.5);
+    var branches = [];
+    var nb = 2 + Math.floor(Math.random() * 3);
+    for (i = 0; i < nb; i++) {
+      var k = 1 + Math.floor(Math.random() * Math.max(1, n - 2));
+      var p0 = pts[k];
+      var dir = Math.random() < 0.5 ? -1 : 1;
+      var bp = [{ u: p0.u, v: p0.v }];
+      var bu = p0.u, bv = p0.v, m = 3 + Math.floor(Math.random() * 3), j;
+      for (j = 0; j < m; j++) {
+        bu += dir * (0.015 + Math.random() * 0.035);
+        bv += 0.03 + Math.random() * 0.05;
+        bp.push({ u: bu, v: bv });
+      }
+      branches.push(bp);
     }
+    return { pts: pts, branches: branches, life: life, maxLife: life };
+  }
+
+  function updateSkyStorm(state, dt, t) {
+    var c = cfg(state);
+    var mode = skyStormMode(state, t);
+    state._skyStormMode = mode;
+    state.partyCrashWeatherActive = mode === "party";
+    state.skyBolts = state.skyBolts || [];
+    var i;
+    for (i = state.skyBolts.length - 1; i >= 0; i--) {
+      state.skyBolts[i].life -= dt;
+      if (state.skyBolts[i].life <= 0) state.skyBolts.splice(i, 1);
+    }
+    state._skyFlash = Math.max(0, (state._skyFlash || 0) - dt * 3.2);
+    if (!mode) { state._skyNextBolt = 0; state._skyNextFlash = 0; return; }
+    var party = mode === "party";
+    var intensity = party ? (c.partyCrashWeatherIntensity != null ? c.partyCrashWeatherIntensity : 1.0) : 1.0;
+    var every = party ? (c.partyCrashBoltEverySec != null ? c.partyCrashBoltEverySec : 0.3)
+      : (c.bossLightningEverySec != null ? c.bossLightningEverySec : 0.35);
+    var maxB = party ? (c.partyCrashMaxBolts != null ? c.partyCrashMaxBolts : 6)
+      : (c.bossLightningMaxBolts != null ? c.bossLightningMaxBolts : 6);
+    var flashA = party ? (c.partyCrashFlashAlpha != null ? c.partyCrashFlashAlpha : 0.55)
+      : (c.bossLightningFlashAlpha != null ? c.bossLightningFlashAlpha : 0.5);
+    var flashEvery = party ? (c.partyCrashFlashEverySec != null ? c.partyCrashFlashEverySec : 0.9) : every * 2.5;
+    state._skyNextBolt = (state._skyNextBolt || 0) - dt;
+    if (state._skyNextBolt <= 0 && every > 0) {
+      // several simultaneous branching bolts
+      var group = 1 + Math.floor(Math.random() * (1 + 2 * intensity));
+      for (i = 0; i < group && state.skyBolts.length < maxB; i++) {
+        state.skyBolts.push(makeBolt(0.04 + Math.random() * 0.92, 0.45 + Math.random() * 0.5, 0.2 + Math.random() * 0.25));
+      }
+      state._skyFlash = Math.max(state._skyFlash, flashA * intensity * (0.55 + Math.random() * 0.45));
+      state._skyNextBolt = every * (0.5 + Math.random());
+    }
+    state._skyNextFlash = (state._skyNextFlash || 0) - dt;
+    if (state._skyNextFlash <= 0 && flashEvery > 0) {
+      state._skyFlash = Math.max(state._skyFlash, flashA * intensity * (0.7 + Math.random() * 0.3));
+      state._skyNextFlash = flashEvery * (0.5 + Math.random());
+    }
+  }
+
+  // Renderer calls this inside the plate sky clip. rect = drawn plate rect {x,y,w,h}.
+  function drawSkyStorm(state, ctx, rect) {
+    if (!rect) return;
+    var t = songT(state);
+    var mode = state._skyStormMode;
+    var c = cfg(state);
+    ctx.save();
+    // storm clouds drifting across the sky (party crash)
+    if (mode === "party" && c.partyCrashClouds !== false) {
+      var i, cx, cy, rw, rh;
+      for (i = 0; i < 9; i++) {
+        cx = rect.x + ((i * 97 + t * 18 * (0.4 + i * 0.05)) % (rect.w + 160)) - 80;
+        cy = rect.y + rect.h * (0.05 + (i % 4) * 0.08);
+        rw = 70 + (i % 5) * 28;
+        rh = 18 + (i % 3) * 10;
+        ctx.globalAlpha = 0.34;
+        ctx.fillStyle = i % 2 ? "#26263c" : "#1c1c30";
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + rw * 0.45, cy + 4, rw * 0.7, rh * 0.85, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx - rw * 0.4, cy + 2, rw * 0.55, rh * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    var flash = state._skyFlash || 0;
+    if (flash > 0.01) {
+      ctx.globalAlpha = Math.min(0.85, flash);
+      ctx.fillStyle = mode === "boss" ? "#f4e8ff" : "#e8f0ff";
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    }
+    var bolts = state.skyBolts || [];
+    var b, k, j, a, pts;
+    for (k = 0; k < bolts.length; k++) {
+      b = bolts[k];
+      a = Math.max(0, Math.min(1, b.life / Math.max(0.01, b.maxLife)));
+      a = a * (0.65 + 0.35 * Math.random()); // flicker
+      var paths = [b.pts].concat(b.branches);
+      for (j = 0; j < paths.length; j++) {
+        pts = paths[j];
+        ctx.beginPath();
+        ctx.moveTo(rect.x + pts[0].u * rect.w, rect.y + pts[0].v * rect.h);
+        var q;
+        for (q = 1; q < pts.length; q++) ctx.lineTo(rect.x + pts[q].u * rect.w, rect.y + pts[q].v * rect.h);
+        ctx.globalAlpha = a * (j === 0 ? 1 : 0.8);
+        ctx.shadowColor = mode === "boss" ? "#ff66ff" : "#88ccff";
+        ctx.shadowBlur = 24;
+        ctx.strokeStyle = mode === "boss" ? "#ffb0ff" : "#ffe066";
+        ctx.lineWidth = j === 0 ? 5.5 : 3.0;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = j === 0 ? 2.2 : 1.3;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function updatePartyCrashWeather(state, dt, t) {
+    updateSkyStorm(state, dt, t);
   }
 
   // --- F) Austin scroll (sega31y: travel = position delta / segmentLength, same as treeOffset) ---
@@ -1213,52 +1271,7 @@
 
   // --- Render helpers ---
   function drawPartyCrashWeather(state, ctx, width, height) {
-    var c = cfg(state);
-    if (!state.partyCrashWeatherActive && !(state._partyCrashFlash > 0)) return;
-    var intensity = c.partyCrashWeatherIntensity != null ? c.partyCrashWeatherIntensity : 0.75;
-    var t = songT(state);
-    ctx.save();
-    if (c.partyCrashClouds !== false && state.partyCrashWeatherActive) {
-      var i, cx, cy, rw, rh, a;
-      for (i = 0; i < 7; i++) {
-        a = 0.18 + 0.1 * intensity;
-        cx = ((i * 97 + t * 18 * (0.4 + i * 0.05)) % (width + 160)) - 80;
-        cy = height * (0.06 + (i % 4) * 0.07);
-        rw = 70 + (i % 5) * 28;
-        rh = 18 + (i % 3) * 10;
-        ctx.globalAlpha = a;
-        ctx.fillStyle = i % 2 ? "#3a3a55" : "#2a2a40";
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
-        ctx.ellipse(cx + rw * 0.45, cy + 4, rw * 0.7, rh * 0.85, 0, 0, Math.PI * 2);
-        ctx.ellipse(cx - rw * 0.4, cy + 2, rw * 0.55, rh * 0.7, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    if (c.partyCrashLightning !== false && state._partyCrashFlash > 0) {
-      var flash = Math.min(1, state._partyCrashFlash * 4) * intensity;
-      ctx.globalAlpha = flash * 0.55;
-      ctx.fillStyle = "#e8f0ff";
-      ctx.fillRect(0, 0, width, height * 0.55);
-      // Jagged bolt
-      ctx.globalAlpha = flash;
-      ctx.strokeStyle = "#ffe066";
-      ctx.lineWidth = 3;
-      ctx.shadowColor = "#88ccff";
-      ctx.shadowBlur = 18;
-      var bx = width * (0.25 + (Math.floor(t * 3) % 5) * 0.12);
-      ctx.beginPath();
-      ctx.moveTo(bx, 0);
-      ctx.lineTo(bx + 18, height * 0.12);
-      ctx.lineTo(bx - 12, height * 0.22);
-      ctx.lineTo(bx + 22, height * 0.34);
-      ctx.lineTo(bx - 8, height * 0.48);
-      ctx.stroke();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-    }
-    ctx.restore();
+    // sega45: storm clouds/bolts/flashes moved into the plate sky mask (drawSkyStorm via renderer)
   }
 
   function drawTunnelApproach(state, ctx, width, height) {
@@ -1268,7 +1281,7 @@
     var phase = state._tunnelPhase;
     var approachPhase = (phase === "freeze" || phase === "shrinkIn" || phase === "blackIn");
     if (!(state.tunnelApproaching || state.tunnelEntranceVisible || approachPhase)) return;
-    if (phase === "inside" || phase === "shrinkOut" || phase === "blackOut" || phase === "roadWait" || phase === "done") return;
+    if (phase === "inside" || phase === "shrinkOut" || phase === "whiteUp" || phase === "whiteDown" || phase === "blackOut" || phase === "roadWait" || phase === "done") return;
     ensureTunnelImages(state);
     var img = state._tunnelEntranceImg;
     if (!img || !img.complete || !(img.naturalWidth > 0)) return;
@@ -1286,9 +1299,11 @@
     var dh = dw * aspect; // scaleX === scaleY — no stretch-distort
     var dy = horizonY - dh; // bottom pinned to horizon; vertical overflow OK
     var dx = (width - dw) / 2;
+    var mouthA = state._tunnelMouthAlpha != null ? state._tunnelMouthAlpha : 1;
+    if (!(mouthA > 0.002)) { state._tunnelMouthRect = { x: dx, y: dy, w: dw, h: dh, cx: dx + dw / 2, cy: dy + dh * 0.55 }; return; }
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = Math.min(1, mouthA);
     ctx.drawImage(img, 0, 0, iw, srcH, dx, dy, dw, dh);
     ctx.restore();
     // Stash mouth rect for player shrink aim
@@ -1600,7 +1615,7 @@
     // Never fully invisible — clamp to min even if misconfigured
     var c = cfg(state);
     var minS = c.tunnelPlayerMinScale != null ? c.tunnelPlayerMinScale : 0.12;
-    if (s < minS && (state.tunnelApproaching || state.inTunnel || state.tunnelExiting || state._tunnelPhase === 'roadWait' || state._tunnelPhase === 'blackIn' || state._tunnelPhase === 'blackOut')) {
+    if (s < minS && (state.tunnelApproaching || state.inTunnel || state.tunnelExiting || state._tunnelPhase === 'roadWait' || state._tunnelPhase === 'blackIn' || state._tunnelPhase === 'blackOut' || state._tunnelPhase === 'whiteUp')) {
       return minS;
     }
     return s;
@@ -1613,17 +1628,8 @@
     var c = cfg(state);
     if (c.tunnelApproachEnabled === false) return false;
     var t = songT(state);
-    var freezeStart = c.tunnelFreezeStartSec != null ? c.tunnelFreezeStartSec
-      : (c.tunnelApproachStartSec != null ? c.tunnelApproachStartSec : 87.5);
-    var enter = c.tunnelEnterSec != null ? c.tunnelEnterSec : 93.5;
-    var exit = c.tunnelExitSec != null ? c.tunnelExitSec : 103.44;
-    var shrinkDur = c.tunnelPlayerShrinkDurSec != null ? c.tunnelPlayerShrinkDurSec : 2.8;
-    var blackDur = c.tunnelBlackDurSec != null ? c.tunnelBlackDurSec : 0.45;
-    var exitShrinkDur = c.tunnelExitShrinkDurSec != null ? c.tunnelExitShrinkDurSec : 2.5;
-    var exitBlackDur = c.tunnelExitBlackDurSec != null ? c.tunnelExitBlackDurSec : 0.4;
-    var roadDelay = c.tunnelRoadDelaySec != null ? c.tunnelRoadDelaySec : 3.0;
-    var roadRestoreAt = exit + exitShrinkDur + exitBlackDur + roadDelay;
-    return (t >= freezeStart && t < roadRestoreAt);
+    var tt = tunnelTimes(state);
+    return (t >= tt.freeze && t < tt.restore);
   }
 
   ns.Sega31x = {
@@ -1633,6 +1639,8 @@
     renderOverlayPreRoad: renderOverlayPreRoad,
     renderOverlayPostRoad: renderOverlayPostRoad,
     drawPartyCrashWeather: drawPartyCrashWeather,
+    drawSkyStorm: drawSkyStorm,
+    tunnelTimes: tunnelTimes,
     drawTunnelFractal: drawTunnelFractal,
     drawTunnelApproach: drawTunnelApproach,
     drawTunnelInterior: drawTunnelInterior,

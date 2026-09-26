@@ -65,16 +65,18 @@
     // sega43: fast single-strip Austin plates (chorus1 violet / verse1 dusk) ride the CRITICAL set
     var bootCfg = state.config || ns.CONFIG || {};
     var fastCritKeys = (bootCfg.austinBgFastStrips !== false && bootCfg.austinBgUseAustinNewPlates !== false)
-      ? (bootCfg.austinBgFastStripCritical || ["dusk", "violet"]).slice() : [];
-    var fastCritNames = fastCritKeys.map(function(k) { return "bg-austin-new/fast/background-" + k + ".jpg"; });
+      ? (bootCfg.austinBgFastStripCritical || ["dusk-clean"]).slice() : [];
+    // sega45: literal strip paths live in config.austinBgStripPaths (deploy scanner ships exactly these)
+    function stripPath(k) {
+      var m = bootCfg.austinBgStripPaths || {};
+      return m[k] || ("images/bg-austin-new/fast/background-" + k + ".jpg");
+    }
+    var fastCritNames = fastCritKeys.map(function(k) { return stripPath(k).replace(/^images\//, ""); });
 
     ns.Track.resetRoad(state);
     ns.Traffic.resetTraffic(state);
     if (ns.Brains && ns.Brains.reset) {
       ns.Brains.reset(state);
-    }
-    if (ns.CyberFlies && ns.CyberFlies.reset) {
-      ns.CyberFlies.reset(state);
     }
     if (ns.Sections && ns.Sections.reset) {
       ns.Sections.reset(state);
@@ -207,7 +209,6 @@
         state.austinStrips = {};
         state._austinNewPlatesReady = state._austinNewPlatesReady || {};
         state.backgroundPlates = {};
-        state.backgroundPlatesPostnuke = { dusk: null, ember: null, night: null, violet: null, storm: null, acid: null };
         state.endingImages = {};
         bindCriticalImages(images);
         var cfg = state.config || (ns.CONFIG) || {};
@@ -219,14 +220,17 @@
             if (img.width > 0) state.sprites = img;
           });
         }
-        // cybercab packs (tiny; traffic)
+        // cybercab packs (tiny; traffic). sega45: only the pack the renderer actually draws —
+        // B = cybercab-pixel (cybercabColorMode "pixel", soft prebake disabled for ship). The soft
+        // prebake pack loads only if config explicitly switches back to mode "prebake".
         (function loadCybercabsLazy() {
           var cols = ["goldfinch","red","silver","blue","white","black"];
           var cars = ["car01","car02","car03","car04"];
           var names = [];
           var i, j;
-          for (i = 0; i < cars.length; i++) for (j = 0; j < cols.length; j++) names.push("cybercab-prebake/" + cars[i] + "-" + cols[j]);
-          for (i = 0; i < cars.length; i++) for (j = 0; j < cols.length; j++) names.push("cybercab-pixel/" + cars[i] + "-" + cols[j]);
+          var softOn = cfg.cybercabSoftPrebakeDisabledForShip === false && cfg.cybercabColorMode === "prebake";
+          var dir = softOn ? "cybercab-prebake/" : "cybercab-pixel/";
+          for (i = 0; i < cars.length; i++) for (j = 0; j < cols.length; j++) names.push(dir + cars[i] + "-" + cols[j]);
           Game.loadImages(names, function(cabImgs) {
             var cabPath = {};
             var k, rel, full;
@@ -246,14 +250,15 @@
           }, { lazyPrio: 5 });
         })();
 
-        // sega43 fast single-strip Austin plates: rotation order ember(40) violet(59) storm(90) acid(111) night
+        // sega45: clean pre-nuke strips (violet @59 / green-clean @106.82) + the two post-nuke fire
+        // plates (dusk/acid fires, 156.5+). Nothing fiery is ever drawn before the nuke.
         (function queueStrips() {
           if (cfg.austinBgFastStrips === false || cfg.austinBgUseAustinNewPlates === false) return;
-          var order = [["dusk", 1], ["ember", 40], ["violet", 59], ["storm", 90], ["acid", 111], ["night", 140]];
+          var order = cfg.austinBgLazyStrips || [["violet", 20], ["green-clean", 70], ["dusk", 140], ["acid", 141]];
           order.forEach(function(p) {
             var key = p[0];
             if (state.austinStrips[key] || fastCritKeys.indexOf(key) >= 0) return;
-            deferredImg(p[1], "images/bg-austin-new/fast/background-" + key + ".jpg", function(img) {
+            deferredImg(p[1], stripPath(key), function(img) {
               if (!(img.width > 0)) return;
               img._austinStrip = true;
               img._austinKey = key;
@@ -265,76 +270,26 @@
 
         // tunnel entrance + interior frames (sega31x binds them; preload here in order)
         if (ns.Sega31x && ns.Sega31x.preloadTunnelImages) {
-          try { ns.Sega31x.preloadTunnelImages(state, 85); } catch (eTu) {}
+          try { ns.Sega31x.preloadTunnelImages(state, 75); } catch (eTu) {}
         }
-
-        // small post-nuke plates (postapoc / winter)
-        [["postapoc-dayglow", "background-postapoc-dayglow"], ["nuclear-winter", "background-nuclear-winter"]].forEach(function(p) {
-          deferredImg(150, "images/" + p[1] + ".png", function(img) { state.backgroundPlates[p[0]] = img; });
-        });
 
         // sega43: Sega nuke art (sky + mushroom)
         if (cfg.nukeSegaEnabled !== false) {
           state._nukeSegaImgs = state._nukeSegaImgs || {};
           [["sky", cfg.nukeSegaSky || "images/fx/nuke-sega-sky.png"],
            ["mush", cfg.nukeSegaMushroom || "images/fx/nuke-sega-mushroom.png"]].forEach(function(p) {
-            deferredImg(155, p[1], function(img) { if (img.width > 0) state._nukeSegaImgs[p[0]] = img; });
+            deferredImg(145, p[1], function(img) { if (img.width > 0) state._nukeSegaImgs[p[0]] = img; });
           });
         }
 
-        // post-nuke dusk animation frames (renderer ensureFxSequence slots "postnuke0..N")
-        (function queuePostnukeAnim() {
-          var nAnim = cfg.postNukeAnimFrames != null ? cfg.postNukeAnimFrames : 4;
-          if (!(nAnim > 1)) return;
-          state._fxImgs = state._fxImgs || {};
-          state._postNukeAnimPaths = [];
-          var pi;
-          for (pi = 1; pi <= nAnim; pi++) {
-            var path = "images/bg-layered/anim/dusk-postnuke-f" + pi + ".png";
-            state._postNukeAnimPaths.push(path);
-            (function(key) {
-              if (state._fxImgs[key]) return;
-              var slot = deferredImg(157, path, null);
-              slot._failed = false;
-              state._fxImgs[key] = slot;
-            })("postnuke" + (pi - 1));
-          }
-        })();
-
-        // sega41: post-nuke plates (~10MB) — dusk first
-        ["dusk", "ember", "night", "violet", "storm", "acid"].forEach(function(key, ix) {
-          deferredImg(ix === 0 ? 159 : 185, "images/bg-layered/background-" + key + "-postnuke.png", function(img) {
-            if (state.backgroundPlatesPostnuke && img.width > 0) state.backgroundPlatesPostnuke[key] = img;
-          });
-        });
-
-        // older nuke plate (fallback only when Sega nuke art is missing)
-        state.nukeBg = deferredImg(170, "images/nuke-bg.png", null);
-
-        // finale storyboard art
+        // finale storyboard art (lose path)
         ["power", "scream", "fight"].forEach(function(key) {
           state.endingImages[key] = deferredImg(190, "images/ending/" + key + ".png", null);
         });
+        // sega45: old atlas plates / postapoc-dayglow / nuclear-winter / filmic / racer / nuke-bg /
+        // destroyed postnuke skylines + dusk-postnuke anim are no longer requested (fallback = nearest
+        // loaded real Austin strip, else sky gradient + road).
 
-        // older atlas plates — fallback only (real Austin strips win); last
-        state.background = deferredImg(200, "images/background.png", function(img) { state.backgroundPlates.dusk = img; });
-        state.backgroundNight = deferredImg(201, "images/background-night.png", function(img) { state.backgroundPlates.night = img; });
-        [["ember", 202], ["storm", 203], ["violet", 204], ["acid", 205], ["filmic", 210], ["racer", 211]].forEach(function(p) {
-          deferredImg(p[1], "images/background-" + p[0] + ".png", function(img) { state.backgroundPlates[p[0]] = img; });
-        });
-
-        // sega41 (sega43: opt-in only) — heavy 3.6MB PNG sheets
-        if (cfg.austinBgUseAustinNewPlates !== false && cfg.austinBgLoadFullPngSheets === true) {
-          ["dusk", "night", "ember", "storm", "violet", "acid"].forEach(function(key) {
-            deferredImg(220, "images/bg-austin-new/background-" + key + ".png", function(img) {
-              if (!(img.width > 0)) return;
-              img._austinNewSheet = true;
-              img._austinKey = key;
-              if (!state.austinStrips[key] || !state.austinStrips[key]._austinStrip) state.austinStrips[key] = img;
-              state._austinNewPlatesReady[key] = state._austinNewPlatesReady[key] || "png";
-            });
-          });
-        }
         if (!timedOut) LazyAssets.start(); // else starts when the critical set completes
         else setTimeout(function() { LazyAssets.start(); }, 20000); // never wait forever on a stuck file
 

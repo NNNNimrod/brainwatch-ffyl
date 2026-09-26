@@ -243,6 +243,7 @@
     state.winSequenceDone = false;
     state.nuclearBlast = 0;
     state.postNukeAustin = false;
+    state.postNukeFire = false;
     state.nuclearBlastT = 0;
     state.nukeFlash = 0;
     state.nukePostFlashBw = 0;

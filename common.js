@@ -100,7 +100,7 @@ if (!window.requestAnimationFrame) { // http://paulirish.com/2011/requestanimati
 //  - never blocks the game; drawImage never throws on unloaded/broken art
 //=========================================================================
 
-var ASSET_V = "sega44";
+var ASSET_V = "sega45";
 
 (function sega44DrawImageGuard() {
   try {
@@ -939,7 +939,6 @@ SPRITES.RS_BLDG_E    = { x: 0, y: 0, w: 60,  h: 200, roadside: "bldg_e", scaleMu
 SPRITES.RS_BLDG_F    = { x: 0, y: 0, w: 64,  h: 220, roadside: "bldg_f", scaleMul: 1.55 };
 SPRITES.RS_BLDG_G    = { x: 0, y: 0, w: 60,  h: 276, roadside: "bldg_g", scaleMul: 1.55 };
 SPRITES.RS_BLDG_H    = { x: 0, y: 0, w: 56,  h: 176, roadside: "bldg_h", scaleMul: 1.55 };
-SPRITES.RS_BLDG_I    = { x: 0, y: 0, w: 100, h: 364, roadside: "bldg_i", scaleMul: 1.4 };
 SPRITES.RS_BLDG_J    = { x: 0, y: 0, w: 56,  h: 200, roadside: "bldg_j", scaleMul: 1.55 };
 SPRITES.RS_BLDG_K    = { x: 0, y: 0, w: 72,  h: 172, roadside: "bldg_k", scaleMul: 1.55 };
 SPRITES.RS_BLDG_L    = { x: 0, y: 0, w: 56,  h: 220, roadside: "bldg_l", scaleMul: 1.55 };
@@ -961,7 +960,7 @@ SPRITES.CITY_STREET = [
 SPRITES.CITY_BUILDINGS = [
   SPRITES.RS_BLDG_A, SPRITES.RS_BLDG_B, SPRITES.RS_BLDG_C, SPRITES.RS_BLDG_D,
   SPRITES.RS_BLDG_E, SPRITES.RS_BLDG_F, SPRITES.RS_BLDG_G, SPRITES.RS_BLDG_H,
-  SPRITES.RS_BLDG_I, SPRITES.RS_BLDG_J, SPRITES.RS_BLDG_K, SPRITES.RS_BLDG_L,
+  SPRITES.RS_BLDG_J, SPRITES.RS_BLDG_K, SPRITES.RS_BLDG_L,
   SPRITES.RS_BLDG_M, SPRITES.RS_BLDG_N
 ];
 SPRITES.CITY_INDUSTRIAL = [
@@ -985,7 +984,7 @@ SPRITES.SECTION_ROADSIDE = {
   verse2:   [SPRITES.RS_TRASH],      // trash cans
   applause: [SPRITES.RS_TREE],       // trees
   diamond2: [SPRITES.RS_CRATE_G],    // crates
-  chorus2:  [SPRITES.RS_BLDG_I],     // denser single building type
+  chorus2:  [],                     // sega45: bldg_i ditched — no roadside buildings in chorus2
   finale:   [SPRITES.RS_BLDG_N]      // landmark building
 };
 // Human-readable labels for script editor "roadside" column
@@ -998,7 +997,7 @@ SPRITES.SECTION_ROADSIDE_LABEL = {
   verse2:   "trash",
   applause: "tree",
   diamond2: "crate",
-  chorus2:  "building",
+  chorus2:  "none",
   finale:   "landmark"
 };
 
@@ -1009,7 +1008,7 @@ SPRITES.ROADSIDE_IMAGE_NAMES = [
   "roadside/crate_gray", "roadside/crate_brown", "roadside/crate_dark",
   "roadside/bldg_a", "roadside/bldg_b", "roadside/bldg_c", "roadside/bldg_d",
   "roadside/bldg_e", "roadside/bldg_f", "roadside/bldg_g", "roadside/bldg_h",
-  "roadside/bldg_i", "roadside/bldg_j", "roadside/bldg_k", "roadside/bldg_l",
+  "roadside/bldg_j", "roadside/bldg_k", "roadside/bldg_l",
   "roadside/bldg_m", "roadside/bldg_n",
   "roadside/ruin_2", "roadside/ruin_3",
   "roadside/rubble_cloud_a", "roadside/rubble_cloud_b", "roadside/rubble_cloud_c",

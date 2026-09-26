@@ -193,27 +193,39 @@
 
   // sega33: absolute lane X = modest screen-fraction offset (NOT roadWidth projection).
   // sega32 roadWidth*nearScale flung hearts off-screen / outside catch; playerDrawX is always center.
+  // sega45 I: hearts land on her HEAD. X = her drawn X + (lane distance from her tweened playerX) x
+  // heartLaneGapFrac*width. Heart in her lane → exactly her drawn X (falls straight onto her head);
+  // heart in the other lane sits one lane-gap over and slides onto her head as she switches lanes.
+  // Lane-gated catch unchanged (same formula for her lane → dx = 0).
   function heartLaneScreenX(state, lane) {
     var c = state.config || {};
     var width = state.width || 640;
-    var laneIdx = (lane != null) ? lane : 0;
-    // sega41: ALWAYS absolute L/R for lane-switch catch (never center / over her head)
-    var absolute = (c.heartLaneScreenXAbsolute !== false) || (c.heartsSpawnAboveLaneNotPlayer !== false) || true;
-    if (absolute) {
-      var frac = (c.heartLaneScreenXFrac != null) ? c.heartLaneScreenXFrac : 0.18;
-      // Clamp so hearts stay clearly off-center (must switch lanes). Never 0.
-      if (!(frac > 0.05)) frac = 0.18;
-      if (frac > 0.35) frac = 0.35;
-      return width / 2 + (laneIdx === 0 ? -1 : 1) * frac * width;
-    }
     var offsets = c.laneOffsets || [-0.55, 0.55];
+    var laneIdx = (lane != null) ? (lane | 0) : 0;
     var laneOff = (offsets[laneIdx] != null) ? offsets[laneIdx] : (laneIdx === 0 ? -0.55 : 0.55);
+    var span = Math.abs(offsets[offsets.length - 1] - offsets[0]) || 1.1;
     var playerX = (state.playerX != null) ? state.playerX : 0;
-    var rel = laneOff - playerX;
-    var camZ = Math.max(1, state.playerZ || 1);
-    var nearScale = (state.cameraDepth || 1) / camZ;
-    var roadHalf = nearScale * (state.roadWidth || 2000) * (width / 2);
-    return (width / 2) + rel * roadHalf;
+    var gap = (c.heartLaneGapFrac != null ? c.heartLaneGapFrac : 0.36) * width;
+    var drawX = (state._playerDrawDestX != null) ? state._playerDrawDestX : width / 2;
+    return drawX + ((laneOff - playerX) / span) * gap;
+  }
+
+  function songNow(state) {
+    var t = state.songClock;
+    if (t == null && state.audio && state.audio.currentTime != null) t = state.audio.currentTime;
+    return t == null ? 0 : t;
+  }
+
+  // sega45 F: no hearts from (freeze - tunnelNoHeartsLeadSec) = 81.5 through the tunnel end (white-out).
+  // Spawns stop tunnelHeartTravelSec earlier so none are still falling at 81.5.
+  function tunnelNoHeartsWindow(state) {
+    var c = state.config || {};
+    if (c.tunnelApproachEnabled === false || !(ns.Sega31x && ns.Sega31x.tunnelTimes)) return null;
+    var tt = ns.Sega31x.tunnelTimes(state);
+    var lead = c.tunnelNoHeartsLeadSec != null ? c.tunnelNoHeartsLeadSec : 3.0;
+    var travel = c.tunnelHeartTravelSec != null ? c.tunnelHeartTravelSec : 2.2;
+    var end = tt.whiteEnd != null ? tt.whiteEnd : tt.restore;
+    return { spawnStop: tt.freeze - lead - travel, clearAt: tt.freeze - lead, end: end };
   }
 
   function heartsBlockedByBossFight(state, opts) {
@@ -250,6 +262,11 @@
     var c = state.config || {};
     // sega37: no hearts while inTunnel / enter→exit phases unless tunnelHeartsEnabled=true
     if (c.tunnelHeartsEnabled === true) return false;
+    var win = tunnelNoHeartsWindow(state);
+    if (win) {
+      var tn = songNow(state);
+      if (tn >= win.spawnStop && tn < win.end) return true;
+    }
     if (state.inTunnel) return true;
     var phase = state._tunnelPhase;
     if (phase === 'blackIn' || phase === 'inside' || phase === 'shrinkOut' || phase === 'blackOut') return true;
@@ -300,6 +317,11 @@
     }
     // sega37: no new hearts in tunnel unless tunnelHeartsEnabled
     if (heartsBlockedByTunnel(state, opts)) {
+      return;
+    }
+    // sega45 H: first hearts at firstHeartsAtSec (8 s)
+    var firstHearts = (state.config && state.config.firstHeartsAtSec != null) ? state.config.firstHeartsAtSec : 8;
+    if (!opts.allowWinCruise && songNow(state) < firstHearts) {
       return;
     }
     if (!SPRITES.LIFE) {
@@ -480,6 +502,16 @@
       item.percent = Util.percentRemaining(item.z, state.segmentLength);
     }
 
+    // sega45 F: from 81.5 through the tunnel end, any leftover heart fades out silently
+    var noHw = tunnelNoHeartsWindow(state);
+    if (noHw && !(state.config && state.config.tunnelHeartsEnabled === true)) {
+      var tnw = songNow(state);
+      if (tnw >= noHw.clearAt && tnw < noHw.end) {
+        for (n = 0; n < state.pickups.length; n++) {
+          if (!state.pickups[n].missFading) { state.pickups[n].missFading = true; state.pickups[n].missFade = 1; }
+        }
+      }
+    }
     var playerScale = state.config.spriteScalePlayer != null ? state.config.spriteScalePlayer : 1.5;
     var pickupScale = state.config.spriteScalePickups != null ? state.config.spriteScalePickups : 2.8;
     playerW = SPRITES.PLAYER_STRAIGHT.w * SPRITES.SCALE * playerScale;
@@ -627,15 +659,18 @@
   }
 
   function updateTutorial(state, dt, t) {
-    if (!state._tutorialCarsSpawned && t >= 1.2) {
+    // sega45 H: first cars at firstCarsAtSec (5 s), first hearts at firstHeartsAtSec (8 s)
+    var firstCars = (state.config && state.config.firstCarsAtSec != null) ? state.config.firstCarsAtSec : 5;
+    var firstHearts = (state.config && state.config.firstHeartsAtSec != null) ? state.config.firstHeartsAtSec : 8;
+    if (!state._tutorialCarsSpawned && t >= firstCars) {
       spawnTutorialCars(state);
     }
     // sega27: verse1 starts at t=8; keep tutorial free of density traffic until then
-    if (t >= 8) {
+    if (t >= Math.max(8, firstCars)) {
       state.sectionTraffic = true;
     }
     if (!state._tutorialPickupsSpawned) {
-      var ready = tutorialCarsCleared(state) || t >= 8;
+      var ready = (tutorialCarsCleared(state) || t >= 8) && t >= firstHearts;
       if (ready && state._tutorialCarsSpawned) {
         state._tutorialPickupsSpawned = true;
         state.sectionPickups = true;
@@ -1321,7 +1356,9 @@
     var sec = sectionAt(t);
     applySection(state, sec, t);
 
-    if (sec.scriptedTutorial) {
+    // sega45 H: tutorial heart burst lands at firstHeartsAtSec (8 s) = the verse1 boundary, so keep
+    // the tutorial pickup step alive a few seconds past the tutorial section
+    if (sec.scriptedTutorial || (!state._tutorialPickupsSpawned && t < 14)) {
       updateTutorial(state, dt, t);
     }
 

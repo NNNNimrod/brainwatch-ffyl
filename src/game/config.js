@@ -87,16 +87,15 @@
       flashStart: 155.0,        // sega31m: +2s (was 153.0); flashBeforeSec 1.5 keep
       flashBeforeSec: 1.5,
       flashFullScreen: true,
-      afterBg: "postapoc-dayglow",
-      usePostnukeAustinPlates: true, // sega31v: after whiteout swap to background-*-postnuke.png
+      afterBg: null, // sega45: postapoc-dayglow ditched; post-nuke = dusk/acid fire cross-fade
+      usePostnukeAustinPlates: false, // sega45: destroyed postnuke skylines ditched (fire plates instead)
       winterStart: 164.5,       // sega31m: +2s (was 162.5)
       winterDelaySec: 8.0,
       winterBg: "nuclear-winter",
       winterGrayscaleAll: false, // sega31j: no B&W nuclear winter
-      nuclearWinterDisabled: true, // sega31j: stay postapoc-dayglow / color
+      nuclearWinterDisabled: true, // sega31j: stay in color (sega45: fire plates)
       skipWinterGrayscale: true,
       winterRoadside: "rubble",
-      plate: "images/nuke-bg.png",
       nuclearBlastScale: 2.5,     // mushroom/stem/shock/gradients ×2.5 (250%)
       nuclearBlastSizeMult: 2.5,  // alias of nuclearBlastScale
       nuclearBlastMushroomClear: true, // redesign: clear mushroom / sun — no heart silhouette
@@ -282,10 +281,10 @@
     playerHitRedDiffRight: 'images/player-hit/diff-right.png',
     playerHitRedDiffStraight: 'images/player-hit/diff-straight.png',
     // --- sega31z multi-frame dusk postnuke + nuke mushroom (SHIPPED) ---
-    postNukeAnimFrames: 4,
+    postNukeAnimFrames: 0, // sega45: dusk-postnuke anim ditched (fire plate cross-fade instead)
     postNukeAnimFps: 6,
     postNukeAnimQueued: false,
-    nukeMushroomAnimFrames: 6, // legacy (unused when nukeSegaEnabled)
+    nukeMushroomAnimFrames: 0, // sega45: old 6-frame nuke ditched
     // --- sega43 Sega Super Scaler nuke (replaces 6-frame one-shot + procedural mushroom) ---
     nukeSegaEnabled: true,
     nukeSegaSky: "images/fx/nuke-sega-sky.png",
@@ -293,7 +292,7 @@
     nukeSegaMaster: [1280, 720], nukeSegaHorizonY: 499, // master coords
     nukeSegaCrop: [291, 48, 700, 451], // mushroom PNG placement in master
     nukeSegaBaseX: 640, nukeSegaCapCenter: [635, 211], nukeSegaCapBottomY: 325,
-    nukeSegaScaleFrom: 0.15, nukeSegaScaleTo: 1.0,
+    nukeSegaScaleFrom: 0.15, nukeSegaScaleTo: 1.15, // sega45: bigger mushroom
     nukeSegaExpandSec: null, // null = whole blast window (3.1s); ease-out cubic
     nukeSegaShakePx: 16, // max screen shake at detonation (decays over window)
     nukeSegaDetFlashSec: 0.55, // yellow → white → fade at detonation
@@ -563,7 +562,7 @@
     austinBgFromStart: true,
     austinBgRotatePerSection: true,
     austinBgRotateEveryLyricLines: 0, // disabled when 0/false; per-section wins when true
-    austinBgPlates: ["dusk", "ember", "night", "violet", "storm", "acid"],
+    austinBgPlates: ["dusk-clean", "violet", "green-clean"], // sega45: PRE-nuke pool only (clean, no fire)
 
     // --- sega31w Austin single-layer BG ---
     austinBgSingleLayer: true, // when true: draw one scaled plate instead of SKY/HILLS/TREES stack
@@ -577,8 +576,28 @@
     austinBgUseAustinNewPlates: true,
     austinBgFullPlateNoScroll: true, // sega41: kill hard vertical seam on full PNG wrap
 
-    austinBgPlateBySection: { verse1: "dusk", chorus1: "violet", verse2: "storm" }, // sega43: verse2 = NEW BG after tunnel exit
-    verse1AustinBgPlate: "dusk",
+    // sega45 pin map (all pre-nuke plates CLEAN): dusk-clean -> violet (59, blend) -> [tunnel] -> green-clean
+    // (106.82 white-out) -> violet (120.5, blend) -> nuke 156.5 -> dusk/acid fire cross-fade
+    austinBgPlateBySection: { tutorial: "dusk-clean", verse1: "dusk-clean", holding: "dusk-clean", chorus1: "violet",
+      bridge: "violet", verse2: "green-clean", applause: "green-clean", diamond2: "violet", chorus2: "violet", finale: "violet" },
+    // sega45: skyline silhouette per plate (128 columns, fraction of plate height where buildings/palms
+    // start). Sky storm bolts/flashes are clipped ABOVE this line → they read as behind the skyline.
+    // clean = dusk-clean / violet / green-clean (same skyline); dusk / acid = the post-nuke fire plates.
+    skylineMask: {
+      clean: [0.371, 0.371, 0.373, 0.354, 0.354, 0.354, 0.36, 0.365, 0.36, 0.36, 0.36, 0.417, 0.417, 0.419, 0.427, 0.44, 0.65, 0.667, 0.694, 0.679, 0.679, 0.59, 0.562, 0.558, 0.558, 0.558, 0.56, 0.342, 0.329, 0.329, 0.329, 0.329, 0.34, 0.421, 0.617, 0.565, 0.529, 0.502, 0.492, 0.492, 0.492, 0.523, 0.521, 0.517, 0.517, 0.515, 0.515, 0.515, 0.546, 0.598, 0.656, 0.656, 0.656, 0.66, 0.708, 0.729, 0.729, 0.729, 0.658, 0.658, 0.658, 0.658, 0.688, 0.685, 0.571, 0.544, 0.5, 0.481, 0.481, 0.479, 0.479, 0.479, 0.575, 0.558, 0.558, 0.558, 0.558, 0.56, 0.573, 0.573, 0.573, 0.429, 0.277, 0.152, 0.152, 0.152, 0.158, 0.171, 0.156, 0.15, 0.15, 0.15, 0.412, 0.435, 0.496, 0.481, 0.481, 0.481, 0.481, 0.483, 0.642, 0.623, 0.615, 0.594, 0.585, 0.585, 0.585, 0.588, 0.594, 0.602, 0.64, 0.704, 0.704, 0.681, 0.681, 0.681, 0.681, 0.617, 0.588, 0.548, 0.548, 0.542, 0.531, 0.531, 0.531, 0.546, 0.546, 0.546],
+      dusk: [0.698, 0.698, 0.233, 0.233, 0.233, 0.233, 0.683, 0.662, 0.633, 0.633, 0.633, 0.692, 0.633, 0.633, 0.633, 0.646, 0.66, 0.717, 0.662, 0.662, 0.662, 0.662, 0.662, 0.665, 0.673, 0.694, 0.319, 0.319, 0.319, 0.49, 0.727, 0.729, 0.729, 0.631, 0.579, 0.546, 0.494, 0.477, 0.477, 0.477, 0.485, 0.517, 0.544, 0.579, 0.64, 0.519, 0.519, 0.519, 0.619, 0.619, 0.619, 0.619, 0.725, 0.725, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.725, 0.685, 0.685, 0.465, 0.454, 0.454, 0.454, 0.454, 0.569, 0.569, 0.569, 0.64, 0.66, 0.654, 0.629, 0.59, 0.585, 0.571, 0.571, 0.571, 0.617, 0.338, 0.152, 0.113, 0.113, 0.113, 0.123, 0.127, 0.113, 0.113, 0.113, 0.135, 0.325, 0.49, 0.481, 0.481, 0.465, 0.465, 0.465, 0.465, 0.635, 0.625, 0.625, 0.625, 0.627, 0.625, 0.625, 0.625, 0.633, 0.648, 0.667, 0.617, 0.615, 0.615, 0.615, 0.725, 0.725, 0.725, 0.723, 0.723, 0.723, 0.45, 0.44, 0.44, 0.44, 0.729],
+      acid: [0.698, 0.698, 0.227, 0.227, 0.227, 0.233, 0.7, 0.629, 0.629, 0.629, 0.654, 0.692, 0.631, 0.631, 0.631, 0.644, 0.658, 0.698, 0.662, 0.646, 0.617, 0.617, 0.617, 0.535, 0.535, 0.535, 0.321, 0.321, 0.321, 0.492, 0.725, 0.729, 0.729, 0.631, 0.579, 0.544, 0.496, 0.481, 0.481, 0.481, 0.487, 0.519, 0.548, 0.602, 0.635, 0.519, 0.519, 0.519, 0.623, 0.621, 0.621, 0.621, 0.667, 0.677, 0.715, 0.729, 0.729, 0.729, 0.727, 0.727, 0.673, 0.673, 0.673, 0.685, 0.54, 0.469, 0.452, 0.452, 0.452, 0.627, 0.627, 0.627, 0.554, 0.554, 0.554, 0.654, 0.627, 0.59, 0.554, 0.554, 0.554, 0.573, 0.4, 0.4, 0.304, 0.117, 0.117, 0.117, 0.129, 0.131, 0.117, 0.117, 0.117, 0.148, 0.323, 0.492, 0.473, 0.473, 0.473, 0.465, 0.465, 0.465, 0.627, 0.627, 0.64, 0.637, 0.627, 0.621, 0.621, 0.621, 0.637, 0.648, 0.665, 0.608, 0.608, 0.608, 0.613, 0.613, 0.615, 0.615, 0.619, 0.702, 0.723, 0.446, 0.44, 0.44, 0.44, 0.723]
+    },
+    // sega45: literal strip paths (deploy-pages.sh ships exactly what the code names)
+    austinBgStripPaths: {
+      "dusk-clean": "images/bg-austin-new/fast/background-dusk-clean.jpg",
+      "violet": "images/bg-austin-new/fast/background-violet.jpg",
+      "green-clean": "images/bg-austin-new/fast/background-green-clean.jpg",
+      "dusk": "images/bg-austin-new/fast/background-dusk.jpg",
+      "acid": "images/bg-austin-new/fast/background-acid.jpg"
+    },
+    austinBgBlendSec: 1.5, // sega45: color-shift blend between pre-nuke plates (same skyline)
+    verse1AustinBgPlate: "dusk-clean",
     chorus1AustinBgPlate: "violet",
     // sega43: ROOT CAUSE chorus1 stripes = SECTIONS.chorus1.psych (neonBlood→outrunCheck) faded
     // the Austin world to 0 and painted procedural stripes. A pinned plate now wins over psych.
@@ -586,7 +605,19 @@
     // sega43: fast single-strip plates (1280x480 JPEG, ~200KB) — dusk+violet in CRITICAL set,
     // others first in lazy queue. The 3.6MB PNG sheets are 3 stacked copies; not needed.
     austinBgFastStrips: true,
-    austinBgFastStripCritical: ["dusk"], // sega44: violet moved to the lazy queue (chorus1 @59s)
+    austinBgFastStripCritical: ["dusk-clean"], // sega45: clean dusk = first-load plate (start screen, verse1)
+    // sega45 lazy strip queue (key, song-time prio): violet well before 59, green before 104, fire plates for the nuke
+    austinBgLazyStrips: [["violet", 20], ["green-clean", 70], ["dusk", 140], ["acid", 141]],
+    // sega45 post-nuke (156.5+): slow cross-fade between the two fire plates + background-only shake
+    postNukeFirePlates: ["dusk", "acid"],
+    postNukeFireHoldSec: 4.0,
+    postNukeFireFadeSec: 2.0,
+    postNukeBgShakeEnabled: true,
+    postNukeBgShakeMinPx: 1,
+    postNukeBgShakeMaxPx: 3,
+    postNukeBgShakeBurstSec: 0.35,
+    postNukeBgShakeGapMinSec: 1.2,
+    postNukeBgShakeGapMaxSec: 3.5,
     criticalDeadlineMs: 7500, // sega44: hard safety — Start unlocks by ~7.5s after page load even if art is still arriving
     austinBgLoadFullPngSheets: false, // sega43: skip ~25MB lazy PNG batch (strip == same pixels)
     austinBgAtlasSource: "trees", // sega43: atlas/postnuke sheets draw ONE strip (never full 3-band sheet)
@@ -629,7 +660,7 @@
     playerBulletEndAtTap: true,        // alias kept for miss end-at-tap
     playerBulletFullScreenRange: false, // NO full-screen range / free-bullet coast
     // E) Post-nuke Austin plates
-    postNukeUseAustinPlates: true,
+    postNukeUseAustinPlates: false, // sega45: destroyed skylines ditched
     normalBrainsAreMedium: true,
     brainKinds: ["tiny", "medium", "boss"],
     preBridgeOnlyTinyBrains: true,
@@ -688,8 +719,20 @@
     chorus1MediumAtSec: 59,
     bloodMediumAtSec: 66.92,
     bloodMediumSpawnPerSec: 1.0,
-    tunnelEnterSec: 93.5, // sega35: interior starts after shrink-in + black (anchors kept)
-    tunnelExitSec: 103.44, // sega35: start exit shrink-out (lyric cue kept)
+    tunnelEnterSec: 90.5, // sega45: 3s earlier (end of shrink-in + black-in; interior after black hold)
+    tunnelExitSec: 104.32, // sega45: exit shrink-out starts; ends exactly 106.82 ("if you've got the strength")
+    tunnelExitWhiteout: true, // sega45: WHITE-OUT at shrink end replaces black exit cover + road delay
+    tunnelExitWhiteUpSec: 0.3,
+    tunnelExitWhiteDownSec: 1.0,
+    tunnelExitRespawnTier: 1, // she comes out at elevation tier 1, normal size
+    tunnelMouthFadeIn: true, // sega45: mouth fades in freeze -> tunnelEntranceVisibleSec
+    tunnelCityFadeOut: true, // sega45: city plate fades to black freeze -> tunnelEntranceVisibleSec, gone thru tunnel
+    tunnelRoadCenter: true,
+    tunnelRoadCenterAmount: 0.6,       // sega45 C: 0 = camera follows her, 1 = road dead centre (her lane then sits at the screen edge)
+    tunnelApproachPlayerMinXFrac: 0.15, // sega45 C: keep her sprite at least this far (of width) from the screen edge on approach // sega45: camera centered (road dead straight + centered) from straight-lead start
+    tunnelNoHeartsLeadSec: 3.0, // sega45: no hearts on screen from (freeze - lead) = 81.5 through tunnel end
+    tunnelHeartTravelSec: 2.2, // heart linger+fall time; spawns stop this long before the no-hearts window
+    tunnelLeanEpsilon: 0.03, // lane tween: lean frame while |target-playerX| > eps, straight on arrival
     tunnelHeartsEnabled: false, // sega37: NO hearts in tunnel (Facts). Opt-in only.
     tunnelHeartEverySec: 1.0, // interval if tunnelHeartsEnabled=true (legacy sega34 ~1.0s)
     tunnelPlayerLaneScreenX: true, // sega37: draw player at lane X while road skipped (L/R dodge)
@@ -697,9 +740,9 @@
     tunnelFractalEnabled: true, // keep until Build swaps to asset interior
     // --- sega35 voice redesign: fixed mouth + player shrink (always visible) + delayed road ---
     tunnelApproachEnabled: true,
-    tunnelFreezeStartSec: 87.5, // road scroll freezes; fixed mouth appears
-    tunnelApproachStartSec: 87.5, // alias of freeze start (legacy key)
-    tunnelEntranceVisibleSec: 90.5, // when mouth visible → force elev tier 1
+    tunnelFreezeStartSec: 84.5, // sega45: road decel ends/freeze + fixed mouth appears (3s earlier)
+    tunnelApproachStartSec: 84.5, // alias of freeze start (legacy key)
+    tunnelEntranceVisibleSec: 87.5, // sega45: mouth fully visible (fade-in end) → force elev tier 1
     tunnelEntranceVisibleProgress: 0.4, // 0–1 of approach phase alt threshold for force tier1
     tunnelApproachDurationSec: 6.0, // legacy duration hint (derived from enter-freeze)
     tunnelMouthFixedScale: 0.55, // FIXED distant mouth — used when tunnelMouthCoverWidth=false
@@ -711,11 +754,11 @@
     tunnelStraightEaseSec: 0.6, // curvature/pitch ease to zero at start of straight window
     tunnelDecelSec: 2.5, // ease-out decel window; road reaches 0 exactly at tunnelFreezeStartSec
     tunnelBlackHoldSec: 1.5, // sega43: pure black after full entry; interior starts later (exit cue fixed)
-    tunnelExitFadeInSec: 1.0, // sega43: fade up from black onto the new post-tunnel BG
+    tunnelExitFadeInSec: 0, // sega45: superseded by white-out
     tunnelBlackDurSec: 0.45, // black cover before interior
     tunnelExitShrinkDurSec: 2.5, // mirror exit: shrink into distance
-    tunnelExitBlackDurSec: 0.4, // black after exit shrink
-    tunnelRoadDelaySec: 3.0, // +3s after exit black before road/scroll resume
+    tunnelExitBlackDurSec: 0, // sega45: superseded by white-out
+    tunnelRoadDelaySec: 0, // sega45: road already scrolling when the white-out fades
     tunnelPlayerMinScale: 0.12, // never invisible — scaled small OK
     tunnelApproachScaleFrom: 0.55, // legacy; mouth uses tunnelMouthFixedScale
     tunnelApproachDownhillEnabled: false, // sega35 OFF — no downhill pitch into mouth
@@ -753,7 +796,7 @@
     tunnelInteriorPathQueued: false, // sega35 SHIPPED
     // --- queued passive tunnel dodge gameplay (editor-first; no Build yet) ---
     tunnelForceElevTier2: true, // while inTunnel / interior — set elev tier 2 (fly)
-    tunnelDodgeBrainsEnabled: true,
+    tunnelDodgeBrainsEnabled: false, // sega45: replaced by lane-runner tunnel brains
     tunnelDodgeBrainKind: 'medium',
     tunnelDodgeSpawnFromHorizon: true,
     tunnelDodgeRandomLane: true,
@@ -765,45 +808,22 @@
     tunnelDodgeSpawnEverySec: 2.0, // medium passive dodge brains remain (less dense than tinies)
     tunnelDodgeQueued: false, // sega35 SHIPPED
     // --- sega39 tunnel center-rush tinies (replaces cyber-flies) ---
-    tunnelCenterRushEnabled: true,
+    tunnelCenterRushEnabled: false, // sega45: center-hover coordinator removed
     tunnelCenterRushSpawnEverySec: 0.75,
     tunnelCenterRushMaxActive: 7,
     tunnelCenterRushApproachSpeed: 0.72,
     tunnelCenterRushTrackRate: 3.2,
     tunnelCenterRushScale: 0.32,
     tunnelCenterRushDamage: null, // null = medium brainZap damage
-    // --- sega43 fair tinies: appear → hover (queue) → wind-up tell → one straight launch at a time ---
-    tinyBrainAppearSec: 1.0, // fade+scale in near center; harmless
-    tinyBrainWindupSec: 0.35, // red pulse + shake tell before launch
-    tinyBrainLaunchGapSec: 1.0, // gap after one launch resolves before next wind-up
-    tinyBrainMaxQueued: 3, // max appearing/hovering at once
-    tinyBrainLaunchSpeed: 1.6, // path fraction / sec (1.6 ≈ 0.63s flight) straight to lane locked at launch
-    tinyBrainHoverScale: 0.42, // hover size vs full (1.0 at player)
-    // --- sega38 cyber-flies (DISABLED sega39 — module unused) ---
-    cyberFlyEnabled: false,
-    cyberFlySpawnEverySec: 1.4,
-    cyberFlyMaxActive: 3,
-    cyberFlyGlowSec: 1.0,
-    cyberFlyApproachSpeed: 0.22,
-    cyberFlySwirlApproachSpeed: 0.045,
-    cyberFlySwirlSec: 1.8,
-    cyberFlyApproachNear: 0.72,
-    cyberFlyDiveSpeed: 9.5,
-    cyberFlyDiveSec: 0.55,
-    cyberFlyDamage: null, // null = medium brainZap damage
-    cyberFlyRadius: 28,
-    cyberFlyAnimFrames: 6,
-    cyberFlyAnimFps: 10,
-    cyberFlyFramePrefix: 'images/fx/cyber-fly/f',
-    cyberFlyFrameExt: '.png',
-    cyberFlyFrames: [
-      'images/fx/cyber-fly/f01.png',
-      'images/fx/cyber-fly/f02.png',
-      'images/fx/cyber-fly/f03.png',
-      'images/fx/cyber-fly/f04.png',
-      'images/fx/cyber-fly/f05.png',
-      'images/fx/cyber-fly/f06.png'
-    ],
+    // --- sega45 tunnel brains: horizon -> locked random lane (like cybercabs), tiny or medium; dodge or shoot ---
+    tunnelBrainsEnabled: true,
+    tunnelBrainSpawnEverySec: 0.9,
+    tunnelBrainTinyChance: 0.5,
+    tunnelBrainSpeed: 0.6, // path fraction / sec (0.6 ≈ 1.7s horizon -> player)
+    tunnelBrainMinGapSec: 0.8, // other lane may not get a brain within this many sec (never both lanes blocked)
+    tunnelBrainTinyScale: 0.5,
+    tunnelBrainMediumScale: 1.25,
+    tunnelBrainDamage: null, // null = medium brainZap damage
     tunnelEntranceAsset: 'images/fx/tunnel-entrance.png',
     tunnelEntranceContentFrac: 0.67, // sega33: source-crop black void below content
     tunnelInteriorFramePrefix: 'images/fx/tunnel-interior-f',
@@ -859,11 +879,30 @@
     partyCrashWeatherAtSec: 28.02,
     partyCrashClouds: true,
     partyCrashLightning: true,
-    partyCrashWeatherIntensity: 0.75,
+    partyCrashWeatherIntensity: 1.0, // sega45 heavier storm
+    partyCrashBoltEverySec: 0.3, // new bolt group cadence (several at once)
+    partyCrashMaxBolts: 6,
+    partyCrashFlashAlpha: 0.55,
+    partyCrashFlashEverySec: 0.9,
     partyCrashWeatherDurationSec: 12,
     partyCrashWeatherQueued: false,
 
     // --- sega31x sax BG on diamond2 / Mad Max 2nd holding-on ---
+    saxBgEnabled: false, // sega45: diamond2 shows the violet Austin plate (Facts pin map), not the sax video
+    // --- sega45 final boss: background lightning + offspring ---
+    bossLightningEnabled: true,
+    bossLightningEverySec: 0.35,
+    bossLightningMaxBolts: 6,
+    bossLightningFlashAlpha: 0.5,
+    bossOffspringEnabled: true,
+    bossOffspringStartSec: 2.0,
+    bossOffspringEverySec: 3.0,
+    bossOffspringMax: 3,
+    bossOffspringSize: 0.42,
+    // --- sega45 first spawns + hearts on her head ---
+    firstCarsAtSec: 5.0,
+    firstHeartsAtSec: 8.0,
+    heartLaneGapFrac: 0.36, // sega45: other-lane heart sits one lane-gap (x width) from her drawn X; hers lands on her head
     saxBgStartSec: 120.5,
     saxBgEndSec: 155,
 

@@ -149,9 +149,6 @@
     if (ns.Brains && ns.Brains.update) {
       ns.Brains.update(state, dt);
     }
-    if (ns.CyberFlies && ns.CyberFlies.update) {
-      ns.CyberFlies.update(state, dt);
-    }
     // Trigger lose storyboards only when song reaches them naturally (no audio seek)
     var songT = state.songClock;
     var music = Dom.get("music");
@@ -891,9 +888,6 @@
     if (ns.Brains && ns.Brains.update) {
       ns.Brains.update(state, dt);
     }
-    if (ns.CyberFlies && ns.CyberFlies.update) {
-      ns.CyberFlies.update(state, dt);
-    }
     // Hard-lose during fight may flip phase mid-frame
     if (state.phase !== "running") {
       return;
@@ -1352,9 +1346,6 @@
     if (ns.Brains && ns.Brains.reset) {
       ns.Brains.reset(state);
     }
-    if (ns.CyberFlies && ns.CyberFlies.reset) {
-      ns.CyberFlies.reset(state);
-    }
     if (ns.Sections && ns.Sections.reset) {
       ns.Sections.reset(state);
     }
@@ -1382,6 +1373,7 @@
     state._fpBurstDoneForTier3 = false;
     state.forceBgStyle = null;
     state.postNukeAustin = false;
+    state.postNukeFire = false;
     state.nuclearWinter = false;
     state.winterGrayscale = false;
     state.bossZapStorm = false;

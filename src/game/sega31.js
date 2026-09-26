@@ -699,7 +699,6 @@
     var flashStart = nb.flashStart != null ? nb.flashStart : 155.0;
     var nukeStart = nb.start != null ? nb.start : 156.5;
     var nukeEnd = nb.end != null ? nb.end : 159.6;
-    var winterStart = nb.winterStart != null ? nb.winterStart : 164.5;
 
     if (state.phase !== "running" && state.phase !== "countdown") {
       state.nukeFlash = 0;
@@ -712,28 +711,23 @@
       : (cfg(state).nukePostFlashBwToColorSec != null ? cfg(state).nukePostFlashBwToColorSec : 1.0);
     if (!(bwSec > 0)) bwSec = 1.0;
 
-    // sega31g: full-screen whiteout before nuke; force nuke plate under white for reveal
+    // sega45: post-nuke background = dusk(fires) ⇄ acid(fires) cross-fade (renderer computeBgMix),
+    // switched on AT the nuke (156.5) under the white flash + Sega nuke sky. Never before 156.5.
+    // (postapoc-dayglow / nuclear-winter / destroyed postnuke skylines are ditched.)
+    state.postNukeFire = t >= nukeStart;
+    state.postNukeAustin = false;
+    state.forceBgStyle = null;
+    state.nuclearWinter = false;
+    state.winterGrayscale = false;
+
     if (t >= flashStart && t < nukeStart) {
       var fu = (t - flashStart) / Math.max(0.05, nukeStart - flashStart);
       state.nukeFlash = fu < 0.2 ? (fu / 0.2) : (fu < 0.85 ? 1 : Math.max(0, 1 - (fu - 0.85) / 0.15));
       state.nukePlateUnderFlash = true;
-      // sega31v: swap to postnuke Austin under whiteout so reveal shows ruined skyline
-      if (nb.usePostnukeAustinPlates !== false && cfg(state).postNukeUseAustinPlates !== false &&
-          state.backgroundPlatesPostnuke) {
-        state.postNukeAustin = true;
-        state.forceBgStyle = null;
-      }
-      // Under whiteout: hold full bright B&W so reveal after flash is grayscale
       state.nukePostFlashBw = 1;
     } else if (t >= nukeStart && t < nukeEnd) {
       state.nukeFlash = 0;
-      state.nukePlateUnderFlash = true; // keep plate through blast pulse
-      if (nb.usePostnukeAustinPlates !== false && cfg(state).postNukeUseAustinPlates !== false &&
-          state.backgroundPlatesPostnuke) {
-        state.postNukeAustin = true;
-        state.forceBgStyle = null;
-      }
-      // Fade bright B&W → original full-color over nukePostFlashBwToColorSec
+      state.nukePlateUnderFlash = true; // keep Sega nuke sky through blast pulse
       var bwElapsed = t - nukeStart;
       state.nukePostFlashBw = bwElapsed < bwSec ? Math.max(0, 1 - bwElapsed / bwSec) : 0;
     } else if (t >= nukeEnd) {
@@ -745,36 +739,6 @@
       state.nukeFlash = 0;
       state.nukePlateUnderFlash = false;
       state.nukePostFlashBw = 0;
-      state.postNukeAustin = false;
-    }
-
-    // Postapoc / postnuke Austin after nuke ends
-    // sega31j: nuclearWinterDisabled / skip winter grayscale — stay color dayglow
-    // sega31v: prefer matching background-*-postnuke.png when loaded
-    var winterOff = !!(nb.nuclearWinterDisabled || nb.skipWinterGrayscale ||
-      cfg(state).nuclearWinterDisabled || cfg(state).nukeNoNuclearWinterBw ||
-      cfg(state).nukeSkipWinterGrayscale || nb.winterGrayscaleAll === false);
-    var usePostnuke = !!(nb.usePostnukeAustinPlates !== false &&
-      (cfg(state).postNukeUseAustinPlates !== false) &&
-      state.backgroundPlatesPostnuke);
-    if (t >= nukeEnd && (t < winterStart || winterOff)) {
-      state.postNukeAustin = !!usePostnuke;
-      // Keep forceBgStyle for postapoc fallback when postnuke plates unavailable
-      state.forceBgStyle = usePostnuke ? null : (nb.afterBg || "postapoc-dayglow");
-      state.nuclearWinter = false;
-      state.winterGrayscale = false;
-      if (winterOff && t >= winterStart) {
-        // keep color; optional rubble roadside only if not fully disabled winter props
-        if (!nb.nuclearWinterDisabled && !cfg(state).nuclearWinterDisabled) {
-          state.winterRoadside = nb.winterRoadside || "rubble";
-        }
-      }
-    } else if (t >= winterStart) {
-      state.postNukeAustin = false;
-      state.forceBgStyle = nb.winterBg || "nuclear-winter";
-      state.nuclearWinter = true;
-      state.winterGrayscale = nb.winterGrayscaleAll !== false;
-      state.winterRoadside = nb.winterRoadside || "rubble";
     }
   }
 

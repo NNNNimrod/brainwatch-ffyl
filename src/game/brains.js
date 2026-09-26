@@ -1379,7 +1379,7 @@
     if (state.bossPhase === "approach") {
       return false;
     }
-    if (state.bossPhase === "bossZaps" && !brain.isBoss) {
+    if (state.bossPhase === "bossZaps" && !brain.isBoss && !brain.bossOffspring) {
       return false;
     }
     // sega25: global zap lock always — at most one brain telegraphs/fires at once
@@ -1393,214 +1393,113 @@
   }
 
 
-  // sega43: one-at-a-time launcher for tunnel tinies (appear → hover → wind-up → straight launch)
-  function tinyRushCoordinator(state, dt) {
-    var c = state.config || {};
-    if (!state.brains) return;
-    var gapSec = c.tinyBrainLaunchGapSec != null ? c.tinyBrainLaunchGapSec : 1.0;
-    var active = state._tinyRushActive;
-    if (active && (!active.alive || active.exitShrink || state.brains.indexOf(active) < 0)) {
-      state._tinyRushActive = null;
-      state._tinyRushGap = gapSec;
-      active = null;
-    }
-    if (state._tinyRushGap > 0) state._tinyRushGap = Math.max(0, state._tinyRushGap - dt);
-    if (active || state._tinyRushGap > 0) return;
-    var i, b, pick = null;
-    for (i = 0; i < state.brains.length; i++) {
-      b = state.brains[i];
-      if (b && b.alive && b.tunnelCenterRush && b.rushPhase === 'hover') {
-        if (!pick || (b.rushAge || 0) > (pick.rushAge || 0)) pick = b;
-      }
-    }
-    if (pick) {
-      pick.rushPhase = 'windup';
-      pick.rushT = 0;
-      state._tinyRushActive = pick;
-    }
-  }
-
-  function updateTinyRushFair(state, brain, dt) {
+  // sega45 E: tunnel lane runner — horizon (tunnel VP) → its LOCKED lane toward her, like a cybercab.
+  // No hover / wind-up / homing. Same lane at arrival = hit; other lane = passes by. Shootable all the way.
+  function updateTunnelLaneBrain(state, brain, dt) {
     var c = state.config || {};
     var h = state.height || 720;
     var w = state.width || 640;
     brain.vx = 0; brain.telegraph = 0; brain.kamikaze = false;
     brain.zapTimer = 99999; brain.postGrowDelay = 99999; brain.noFight = true;
-    var appearSec = Math.max(0.05, c.tinyBrainAppearSec != null ? c.tinyBrainAppearSec : 1.0);
-    var windSec = Math.max(0.05, c.tinyBrainWindupSec != null ? c.tinyBrainWindupSec : 0.35);
-    var speed = Math.max(0.1, c.tinyBrainLaunchSpeed != null ? c.tinyBrainLaunchSpeed : 1.6);
-    var hoverScale = c.tinyBrainHoverScale != null ? c.tinyBrainHoverScale : 0.42;
-    var cx = w * 0.5;
-    var cy = (state._roadHorizonY != null) ? state._roadHorizonY : h * 0.42;
-    cy = Math.max(h * 0.22, Math.min(h * 0.5, cy));
-    var slotOff = [0, -0.17, 0.17, -0.3, 0.3];
-    var hx = cx + (slotOff[brain.hoverSlot | 0] || 0) * w;
-    var hy = cy - h * 0.03 + ((brain.hoverSlot | 0) % 2 ? h * 0.02 : 0);
-    brain.rushAge = (brain.rushAge || 0) + dt;
-    brain.rushT = (brain.rushT || 0) + dt;
-    brain.bobPhase = (brain.bobPhase || 0) + dt * 3.2;
-    brain.throb = (brain.throb || 0) + dt * 5.5;
-    var bob = Math.sin(brain.bobPhase) * h * 0.012;
-    var scale = hoverScale;
-    var shakeX = 0;
-    brain.windup = 0;
-    if (brain.rushPhase === 'appear') {
-      var ua = Math.min(1, brain.rushT / appearSec);
-      var ea = 1 - Math.pow(1 - ua, 2);
-      brain.fadeAlpha = ea;
-      scale = hoverScale * (0.15 + 0.85 * ea);
-      brain.x = hx; brain.baseY = hy; brain.y = hy + bob * ea;
-      if (ua >= 1) { brain.rushPhase = 'hover'; brain.rushT = 0; }
-    } else if (brain.rushPhase === 'hover') {
-      brain.fadeAlpha = 1;
-      brain.x = hx; brain.baseY = hy; brain.y = hy + bob;
-    } else if (brain.rushPhase === 'windup') {
-      var uw = Math.min(1, brain.rushT / windSec);
-      brain.fadeAlpha = 1;
-      brain.windup = 0.5 + 0.5 * Math.sin(brain.rushT * 40); // red flash pulse
-      shakeX = Math.round((Math.random() - 0.5) * 6);
-      scale = hoverScale * (1 + 0.18 * Math.sin(uw * Math.PI));
-      brain.x = hx + shakeX; brain.baseY = hy; brain.y = hy + bob;
-      if (uw >= 1) {
-        // lock the target to the player's lane AT LAUNCH — switching lanes dodges it
-        var lane = state.lane != null ? (state.lane | 0) : 0;
-        brain.attackLane = lane; brain.lane = lane;
-        brain._lx0 = hx; brain._ly0 = hy + bob;
-        brain._lx1 = laneScreenX(state, lane);
-        brain._ly1 = playerElevAimY(state);
-        brain.rushPhase = 'launch'; brain.rushT = 0; brain._launchU = 0;
-      }
-    } else if (brain.rushPhase === 'launch') {
-      brain.fadeAlpha = 1;
-      brain._launchU = Math.min(1.05, (brain._launchU || 0) + dt * speed);
-      var ul = Math.min(1, brain._launchU);
-      var el = ul * ul; // accelerate toward camera, straight line
-      brain.x = brain._lx0 + (brain._lx1 - brain._lx0) * el;
-      brain.baseY = brain._ly0 + (brain._ly1 - brain._ly0) * el;
-      brain.y = brain.baseY;
-      scale = hoverScale + (1 - hoverScale) * el;
-      if (!brain._tunnelHitDone && ul >= 0.95) {
-        brain._tunnelHitDone = true;
-        if ((state.lane | 0) === (brain.attackLane | 0)) {
-          var dmg = c.tunnelCenterRushDamage;
-          if (dmg == null) {
-            dmg = (c.damage && c.damage.brainZap != null) ? c.damage.brainZap : ((c.brains && c.brains.zapDamage) || 30);
-          }
-          if (ns.Gameplay && ns.Gameplay.applyDamageExternal) ns.Gameplay.applyDamageExternal(state, dmg);
-          else if (state.health != null) state.health = Math.max(0, state.health - dmg);
-          state._zapHit = true;
-          brain.hitFlash = 1;
-          state.eventText = "BRAIN HIT!";
-          state.eventTimer = 0.75;
-          brain.alive = false;
-          brain.hp = 0;
-          if (ns.Fx && ns.Fx.spawnExplosion) ns.Fx.spawnExplosion(state, brain.x, brain.y, "sega", 0.55);
-        } else {
-          state.eventText = "DODGED";
-          state.eventTimer = 0.5;
-          brain.exitShrink = true;
-          brain.exitShrinkT = 0;
-          brain.exitShrinkDur = 0.45;
-        }
-      }
-    }
-    var throbScale = 1 + 0.08 * Math.sin(brain.throb);
-    var size = (brain.radius || 16) * 2.4 * throbScale * scale;
+    var speed = brain.laneSpeed != null ? brain.laneSpeed : (c.tunnelBrainSpeed != null ? c.tunnelBrainSpeed : 0.6);
+    brain.laneU = (brain.laneU || 0) + dt * Math.max(0.05, speed);
+    var u = Math.min(1.35, brain.laneU);
+    var path = state._tunnelPath;
+    var vpX = w * (path && path.vpX != null ? path.vpX : 0.5);
+    var vpY = h * (path && path.vpY != null ? path.vpY : 0.48);
+    var lx = laneScreenX(state, brain.lane | 0);
+    var ly = playerElevAimY(state);
+    var p = u * u; // perspective: slow far away, fast up close
+    brain.x = vpX + (lx - vpX) * p;
+    brain.baseY = vpY + (ly - vpY) * p;
+    brain.y = brain.baseY;
+    var scale = 0.05 + 0.95 * p;
+    brain.throb = (brain.throb || 0) + dt * 4;
+    var throbScale = 1 + 0.06 * Math.sin(brain.throb);
     brain.drawScale = scale * throbScale;
-    brain.approach = scale;
-    // shootable in appear + hover + windup + launch (screenRect always live)
+    brain.approach = Math.min(1, scale);
+    brain.fadeAlpha = Math.min(1, u / 0.12);
+    var size = (brain.radius || 16) * 2.4 * brain.drawScale;
     brain.screenRect = { x: brain.x - size / 2, y: brain.y - size / 2, w: size, h: size };
     if (brain.hitFlash > 0) brain.hitFlash = Math.max(0, brain.hitFlash - dt * 4);
-  }
-
-  // sega39: tunnel center-rush tinies — from vanishing-point center, home toward player lane (no fire)
-  function updateTunnelCenterRush(state, brain, dt) {
-    if (brain.rushPhase) { updateTinyRushFair(state, brain, dt); return; } // sega43
-    var c = state.config || {};
-    var h = state.height || 720;
-    var w = state.width || 640;
-
-    brain.vx = 0;
-    brain.telegraph = 0;
-    brain.kamikaze = false;
-    brain.zapTimer = 99999;
-    brain.postGrowDelay = 99999;
-    brain.noFight = true;
-
-    var pLane = state.lane != null ? state.lane : 0;
-    var trackRate = c.tunnelCenterRushTrackRate != null ? c.tunnelCenterRushTrackRate : 3.2;
-    var wantX = laneScreenX(state, pLane);
-    var wantY = playerElevAimY(state);
-    if (brain._aimX == null) brain._aimX = wantX;
-    if (brain._aimY == null) brain._aimY = wantY;
-    brain._aimX += (wantX - brain._aimX) * Math.min(1, dt * trackRate);
-    brain._aimY += (wantY - brain._aimY) * Math.min(1, dt * trackRate);
-    brain.attackLane = pLane;
-    brain.lane = pLane;
-
-    var rushSpeed = brain.rushSpeed != null ? brain.rushSpeed
-      : (c.tunnelCenterRushApproachSpeed != null ? c.tunnelCenterRushApproachSpeed : 0.72);
-    if (brain.approach == null) brain.approach = 0.04;
-    brain.approach = Math.min(1.2, brain.approach + dt * rushSpeed);
-
-    var u = Math.min(1, Math.max(0, brain.approach));
-    var ease = u * u * (3 - 2 * u);
-    var sx = brain.spawnCx != null ? brain.spawnCx : w * 0.5;
-    var sy = brain.spawnCy != null ? brain.spawnCy : ((state._roadHorizonY != null) ? state._roadHorizonY : h * 0.42);
-    brain.x = sx + (brain._aimX - sx) * ease;
-    brain.baseY = sy + (brain._aimY - sy) * ease;
-    brain.bobPhase = (brain.bobPhase || 0) + dt * 4.5;
-    var bob = Math.sin(brain.bobPhase) * (brain.bobAmp != null ? brain.bobAmp : h * 0.008) * (1 - ease * 0.45);
-    brain.y = brain.baseY + bob;
-
-    var approachScale = 0.08 + 0.92 * ease;
-    brain.throb = (brain.throb || 0) + dt * 5.5;
-    var throbScale = 1 + 0.10 * Math.sin(brain.throb);
-    var size = (brain.radius || 16) * 2.4 * throbScale * approachScale;
-    brain.drawScale = approachScale * throbScale;
-    brain.screenRect = {
-      x: brain.x - size / 2,
-      y: brain.y - size / 2,
-      w: size,
-      h: size
-    };
-    if (brain.hitFlash > 0) brain.hitFlash = Math.max(0, brain.hitFlash - dt * 4);
-
-    if (!brain._tunnelHitDone && brain.approach >= 0.88) {
+    if (!brain._tunnelHitDone && u >= 0.97) {
       brain._tunnelHitDone = true;
-      var playerX = laneScreenX(state, state.lane != null ? state.lane : 0);
-      var otherLane = ((state.lane | 0) === 0) ? 1 : 0;
-      var otherX = laneScreenX(state, otherLane);
-      var closerToPlayer = Math.abs(brain.x - playerX) <= Math.abs(brain.x - otherX) + 10;
-      var sameLane = ((state.lane | 0) === (brain.attackLane | 0));
-      if (sameLane || closerToPlayer) {
-        var dmg = c.tunnelCenterRushDamage;
-        if (dmg == null) {
-          dmg = (c.damage && c.damage.brainZap != null)
-            ? c.damage.brainZap
-            : ((c.brains && c.brains.zapDamage) || 30);
-        }
-        if (ns.Gameplay && ns.Gameplay.applyDamageExternal) {
-          ns.Gameplay.applyDamageExternal(state, dmg);
-        } else if (state.health != null) {
-          state.health = Math.max(0, state.health - dmg);
-        }
+      // her lane by her (tweened) position, so a lane change that is under way counts
+      var offs = c.laneOffsets || [-0.55, 0.55];
+      var mid = (offs[0] + offs[offs.length - 1]) / 2;
+      var herLane = (state.playerX != null ? state.playerX : 0) < mid ? 0 : 1;
+      if (herLane === (brain.lane | 0) && !state.tunnelExiting) {
+        var dmg = c.tunnelBrainDamage;
+        if (dmg == null) dmg = (c.damage && c.damage.brainZap != null) ? c.damage.brainZap : ((c.brains && c.brains.zapDamage) || 30);
+        if (ns.Gameplay && ns.Gameplay.applyDamageExternal) ns.Gameplay.applyDamageExternal(state, dmg);
+        else if (state.health != null) state.health = Math.max(0, state.health - dmg);
         state._zapHit = true;
-        brain.hitFlash = 1;
         state.eventText = "BRAIN HIT!";
         state.eventTimer = 0.75;
         brain.alive = false;
         brain.hp = 0;
-        if (ns.Fx && ns.Fx.spawnExplosion) {
-          ns.Fx.spawnExplosion(state, brain.x, brain.y, "sega", 0.55);
-        }
-      } else {
-        state.eventText = "DODGED";
-        state.eventTimer = 0.5;
-        brain.exitShrink = true;
-        brain.exitShrinkT = 0;
-        brain.exitShrinkDur = 0.45;
+        if (ns.Fx && ns.Fx.spawnExplosion) ns.Fx.spawnExplosion(state, brain.x, brain.y, "sega", 0.6);
+        return;
       }
+      state.eventText = "DODGED";
+      state.eventTimer = 0.5;
+    }
+    if (u >= 1.35 || brain.y - size / 2 > h) {
+      brain.alive = false; // passed her, off screen — silent
+    }
+  }
+
+  // sega45 J: boss offspring — small brains start bossOffspringStartSec into the fight, every
+  // bossOffspringEverySec, at most bossOffspringMax alive. Stop (and pop the rest) once the boss dies,
+  // so they can never block the win.
+  function updateBossOffspring(state, dt) {
+    var c = state.config || {};
+    if (!(state.finaleMode === "fight" || state.finaleFight) || state.finaleWon || state.finaleLost) {
+      state._bossFightT = 0; state._bossOffspringAcc = 0;
+      return;
+    }
+    if (c.bossOffspringEnabled === false) return;
+    state._bossFightT = (state._bossFightT || 0) + dt;
+    var boss = null, i, b, alive = 0;
+    for (i = 0; i < state.brains.length; i++) {
+      b = state.brains[i];
+      if (b && b.isBoss && b.alive && !b.bossDying) boss = b;
+      if (b && b.alive && b.bossOffspring) alive++;
+    }
+    if (!boss || state.bossDefeatBeat) {
+      if (alive) {
+        for (i = 0; i < state.brains.length; i++) {
+          b = state.brains[i];
+          if (b && b.alive && b.bossOffspring) {
+            b.alive = false; b.hp = 0;
+            if (ns.Fx && ns.Fx.spawnExplosion) ns.Fx.spawnExplosion(state, b.x, b.y, "sega", 0.45);
+          }
+        }
+      }
+      return;
+    }
+    var startSec = c.bossOffspringStartSec != null ? c.bossOffspringStartSec : 2.0;
+    var every = c.bossOffspringEverySec != null ? c.bossOffspringEverySec : 3.0;
+    var cap = c.bossOffspringMax != null ? c.bossOffspringMax : 3;
+    if (state._bossFightT < startSec || !(every > 0)) return;
+    state._bossOffspringAcc = (state._bossOffspringAcc == null ? every : state._bossOffspringAcc) + dt;
+    if (state._bossOffspringAcc < every) return;
+    if (alive >= cap) return; // wait for a free slot (acc keeps it ready)
+    state._bossOffspringAcc = 0;
+    var kid = spawnBrain(state, {
+      tiny: true,
+      kind: "tiny",
+      finale: true,
+      x: boss.x + (Math.random() - 0.5) * (boss.radius || 60),
+      y: boss.y + (boss.radius || 60) * 0.3,
+      sizeScale: c.bossOffspringSize != null ? c.bossOffspringSize : 0.42,
+      startScale: 0.25,
+      fastGrow: true
+    });
+    if (kid) {
+      kid.bossOffspring = true;
+      kid.baseY = kid.y;
+      kid.targetBaseY = Math.min((state.height || 720) * 0.45, kid.y + (state.height || 720) * 0.12);
     }
   }
 
@@ -1614,7 +1513,7 @@
     var approachScale;
 
     ensureBrains(state, dt);
-    tinyRushCoordinator(state, dt); // sega43
+    updateBossOffspring(state, dt); // sega45
     updateMediumGestation(state, dt);
     updateBossChoreography(state, dt);
 
@@ -1660,35 +1559,17 @@
       if (!brain.alive) {
         continue;
       }
-      // sega39: center-rush tinies (no fire; shoot/dodge)
-      if (brain.tunnelCenterRush) {
-        updateTunnelCenterRush(state, brain, dt);
+      // sega45: tunnel lane runners (replaces center-rush tinies + dodge brains)
+      if (brain.tunnelLane) {
+        updateTunnelLaneBrain(state, brain, dt);
         continue;
       }
-      // sega34: tunnel passive dodge — bob only, locked lane, no strafe
-      if (brain.tunnelDodge) {
-        var dodgeHz = brain.bobHz != null ? brain.bobHz : 0.7;
-        brain.bobPhase = (brain.bobPhase || 0) + dt * dodgeHz * Math.PI * 2;
-        brain.vx = 0;
-        brain.telegraph = 0;
-        brain.kamikaze = false;
-        brain.zapTimer = 99999;
-        brain.postGrowDelay = 99999;
-        var dLane = brain.lane != null ? brain.lane : (brain.attackLane != null ? brain.attackLane : 0);
-        brain.lane = dLane;
-        brain.attackLane = dLane;
-        brain.x = laneScreenX(state, dLane);
-      } else {
-        brain.bobPhase += dt * 2.4;
-      }
+      brain.bobPhase += dt * 2.4;
       // sega31m: ALL brains throb faster+harder as HP↓ (visual pulse, not throw rate)
       var throbRate = 3.2;
       var hpPctT = brain.maxHp > 0 ? Math.max(0, Math.min(1, brain.hp / brain.maxHp)) : 1;
       var low = 1 - hpPctT;
-      if (brain.tunnelDodge) {
-        throbRate = 2.4; // gentle idle throb
-        low = 0;
-      } else if (state.config && state.config.brainThrobWithLowHp !== false) {
+      if (state.config && state.config.brainThrobWithLowHp !== false) {
         var rateFull = state.config.brainThrobRateFull != null ? state.config.brainThrobRateFull : 2.2;
         var rateLow = state.config.brainThrobRateLow != null ? state.config.brainThrobRateLow : 18;
         throbRate = rateFull + low * (rateLow - rateFull);
@@ -1697,7 +1578,7 @@
       }
       brain._throbHpLow = low;
       brain.throb = (brain.throb || 0) + dt * throbRate;
-      if (!brain.tunnelDodge) {
+      {
         brain.x += brain.vx * dt;
         if (brain.x < 50) {
           brain.x = 50;
@@ -1747,39 +1628,7 @@
         brain.hitFlash = Math.max(0, brain.hitFlash - dt * 4);
       }
 
-      // sega34: tunnel dodge — same-lane contact when fully approached = hit; else pass & despawn
-      if (brain.tunnelDodge && !brain._tunnelHitDone && brain.approach >= 0.92) {
-        var sameLane = (state.lane|0) === (brain.lane|0);
-        brain._tunnelHitDone = true;
-        if (sameLane) {
-          var dmg = (state.config && state.config.damage && state.config.damage.brainZap != null)
-            ? state.config.damage.brainZap
-            : ((state.config && state.config.brains && state.config.brains.zapDamage) || 30);
-          if (ns.Gameplay && ns.Gameplay.applyDamageExternal) {
-            ns.Gameplay.applyDamageExternal(state, dmg);
-          } else if (state.health != null) {
-            state.health = Math.max(0, state.health - dmg);
-          }
-          state._zapHit = true;
-          brain.hitFlash = 1;
-          state.eventText = "TUNNEL HIT!";
-          state.eventTimer = 0.8;
-          // Pop after contact
-          brain.alive = false;
-          brain.hp = 0;
-          if (ns.Fx && ns.Fx.spawnExplosion) {
-            ns.Fx.spawnExplosion(state, brain.x, brain.y, "sega", 0.7);
-          }
-        } else {
-          // Dodged — shrink away into distance
-          brain.exitShrink = true;
-          brain.exitShrinkT = 0;
-          brain.exitShrinkDur = 0.55;
-        }
-      }
-
       if (
-        brain.tunnelDodge ||
         brain.noFight ||
         state.pauseZaps ||
         state.bossDefeatBeat ||

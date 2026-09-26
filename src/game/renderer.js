@@ -357,98 +357,177 @@
     return out;
   }
 
-  // sega43: pre-nuke intact skylines (violet/night/storm) vs fiery (dusk/acid/ember)
-  var AUSTIN_STRIP_FALLBACK = {
-    violet: ["night", "storm", "dusk", "acid", "ember"],
-    night: ["violet", "storm", "dusk", "acid", "ember"],
-    storm: ["night", "violet", "dusk", "acid", "ember"],
-    dusk: ["ember", "acid", "violet", "night", "storm"],
-    ember: ["dusk", "acid", "violet", "night", "storm"],
-    acid: ["dusk", "ember", "violet", "night", "storm"]
-  };
-
-  // sega44: Start can unlock before every plate is in — never hand back an unloaded image when a
-  // real (loaded) picture exists; else null → sky gradient + road (never blank, never throws).
+  // sega44/45: never hand back an unloaded image; top plate of the sega45 pin-map mix, else the
+  // nearest loaded real Austin strip, else null → sky gradient + road (never blank, never throws).
   function activeBackground(state) {
-    var bg = activeBackgroundPick(state);
-    if (bg && bg.width > 0) return bg;
-    var strips = state.austinStrips;
-    if (strips) {
-      var style = state.forceBgStyle || state.bgStyle || (state.nightAustin ? "night" : "dusk");
-      var fam = [style].concat(AUSTIN_STRIP_FALLBACK[style] || AUSTIN_STRIP_FALLBACK.dusk);
-      var fi;
-      for (fi = 0; fi < fam.length; fi++) {
-        if (strips[fam[fi]] && strips[fam[fi]].width > 0) return strips[fam[fi]];
-      }
-    }
-    return bg;
+    var mix = computeBgMix(state);
+    return mix.length ? mix[mix.length - 1].img : null;
   }
 
-  function activeBackgroundPick(state) {
-    var plates = state.backgroundPlates;
-    var post = state.backgroundPlatesPostnuke;
-    // sega31v: honor forceBgStyle (post-nuke / winter) — was ignored before
-    var style = state.forceBgStyle || state.bgStyle || (state.nightAustin ? "night" : "dusk");
-    // sega31z: multi-frame dusk postnuke cycle when postNuke active
-    if (state.postNukeAustin) {
-      var cfgPn = state.config || {};
-      var nAnim = cfgPn.postNukeAnimFrames != null ? cfgPn.postNukeAnimFrames : 4;
-      if (nAnim > 1) {
-        if (!state._postNukeAnimImgs) {
-          var pnPaths = [];
-          var pi;
-          for (pi = 1; pi <= nAnim; pi++) {
-            pnPaths.push('images/bg-layered/anim/dusk-postnuke-f' + pi + '.png');
-          }
-          state._postNukeAnimPaths = pnPaths;
-        }
-        var pnImgs = ensureFxSequence(state, 'postnuke', state._postNukeAnimPaths || []);
-        if (pnImgs.length >= 2) {
-          var fpsPn = cfgPn.postNukeAnimFps != null ? cfgPn.postNukeAnimFps : 6;
-          var phasePn = state.songClock != null ? state.songClock : (state.elapsed || 0);
-          var idxPn = Math.floor(phasePn * fpsPn) % pnImgs.length;
-          return pnImgs[idxPn];
-        }
+  // ---------------------------------------------------------------------------------------------
+  // sega45 background pin map + blends (all pre-nuke plates CLEAN — fiery plates only after the nuke)
+  //   dusk-clean (start/verse1/holding) → violet (chorus1 59, 1.5 s blend) → black (tunnel mouth)
+  //   → green-clean (white-out 106.82) → violet (diamond2 120.5, 1.5 s blend)
+  //   → nuke 156.5: dusk(fires) ⇄ acid(fires) slow cross-fade (hold/fade), + background-only shake.
+  // ---------------------------------------------------------------------------------------------
+  var PRE_NUKE_KEYS = ["dusk-clean", "violet", "green-clean"];
+  var FIRE_KEYS = ["dusk", "acid", "ember"];
+
+  function smoothstep01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+
+  function stripImg(state, key) {
+    var s = state.austinStrips || {};
+    var im = s[key];
+    return (im && im.width > 0) ? im : null;
+  }
+
+  function nearestLoadedStrip(state, key, postNuke) {
+    var order = [key].concat(postNuke ? FIRE_KEYS.concat(PRE_NUKE_KEYS) : PRE_NUKE_KEYS);
+    var i, im;
+    for (i = 0; i < order.length; i++) {
+      if (!postNuke && FIRE_KEYS.indexOf(order[i]) >= 0) continue; // never fiery before the nuke
+      im = stripImg(state, order[i]);
+      if (im) return { img: im, key: order[i] };
+    }
+    return null;
+  }
+
+  function nukeStartSec(state) {
+    var nb = (state.config && state.config.nuclearBlast) || {};
+    return nb.start != null ? nb.start : 156.5;
+  }
+
+  // Returns [{img, a, key}] bottom → top.
+  function computeBgMix(state) {
+    var c = state.config || {};
+    var t = state.songClock != null ? state.songClock : 0;
+    if (state.postNukeFire) {
+      var keys = c.postNukeFirePlates || ["dusk", "acid"];
+      var A = stripImg(state, keys[0]);
+      var B = stripImg(state, keys[1] || keys[0]);
+      if (!A && !B) {
+        var fb = nearestLoadedStrip(state, keys[0], true);
+        return fb ? [{ img: fb.img, a: 1, key: fb.key }] : [];
       }
-      if (post) {
-        var austinKey = state.austinBgPlate || state.bgStyle || "dusk";
-        if (austinKey === "filmic" || austinKey === "racer" || austinKey === "postapoc-dayglow" || austinKey === "nuclear-winter") {
-          austinKey = state.austinBgPlate || "dusk";
+      if (!A) return [{ img: B, a: 1, key: keys[1] }];
+      if (!B || B === A) return [{ img: A, a: 1, key: keys[0] }];
+      var hold = Math.max(0, c.postNukeFireHoldSec != null ? c.postNukeFireHoldSec : 4);
+      var fade = Math.max(0.05, c.postNukeFireFadeSec != null ? c.postNukeFireFadeSec : 2);
+      var cyc = 2 * (hold + fade);
+      var u = ((t - nukeStartSec(state)) % cyc + cyc) % cyc;
+      var k;
+      if (u < hold) k = 0;
+      else if (u < hold + fade) k = (u - hold) / fade;
+      else if (u < 2 * hold + fade) k = 1;
+      else k = 1 - (u - 2 * hold - fade) / fade;
+      k = smoothstep01(k);
+      return [{ img: A, a: 1, key: keys[0] }, { img: B, a: k, key: keys[1] }];
+    }
+    var key = state.austinBgPlate || (c.austinBgFastStripCritical || ["dusk-clean"])[0];
+    if (PRE_NUKE_KEYS.indexOf(key) < 0) key = "dusk-clean"; // fiery / legacy never pre-nuke
+    var pick = nearestLoadedStrip(state, key, false);
+    if (!pick) return [];
+    var m = state._bgMixState || (state._bgMixState = { img: null, prev: null, t0: 0 });
+    var blendSec = c.austinBgBlendSec != null ? c.austinBgBlendSec : 1.5;
+    var snap = !m.img || state.phase !== "running" ||
+      (state._tunnelCityAlpha != null && state._tunnelCityAlpha <= 0.001) || !(blendSec > 0);
+    if (pick.img !== m.img) {
+      m.prev = snap ? null : m.img;
+      m.t0 = t;
+      m.img = pick.img;
+      m.key = pick.key;
+    }
+    if (m.prev) {
+      var bk = (t - m.t0) / blendSec;
+      if (bk >= 1 || bk < 0) m.prev = null;
+      else return [{ img: m.prev, a: 1, key: "prev" }, { img: m.img, a: smoothstep01(bk), key: m.key }];
+    }
+    return [{ img: m.img, a: 1, key: m.key }];
+  }
+
+  // Background-only shake after the nuke: short random bursts of 1-3 px jitter.
+  function postNukeBgShake(state) {
+    var c = state.config || {};
+    if (!state.postNukeFire || c.postNukeBgShakeEnabled === false) return null;
+    var t = state.songClock != null ? state.songClock : 0;
+    var sh = state._bgShake || (state._bgShake = { next: t + 0.5, until: -1 });
+    if (t < sh.until - 30 || t > sh.next + 30) { sh.next = t + 0.5; sh.until = -1; } // seek guard
+    if (t >= sh.next) {
+      var burst = c.postNukeBgShakeBurstSec != null ? c.postNukeBgShakeBurstSec : 0.35;
+      var gMin = c.postNukeBgShakeGapMinSec != null ? c.postNukeBgShakeGapMinSec : 1.2;
+      var gMax = c.postNukeBgShakeGapMaxSec != null ? c.postNukeBgShakeGapMaxSec : 3.5;
+      sh.until = t + burst * (0.6 + Math.random() * 0.8);
+      sh.next = sh.until + gMin + Math.random() * Math.max(0, gMax - gMin);
+    }
+    if (t >= sh.until) return null;
+    var lo = c.postNukeBgShakeMinPx != null ? c.postNukeBgShakeMinPx : 1;
+    var hi = c.postNukeBgShakeMaxPx != null ? c.postNukeBgShakeMaxPx : 3;
+    var mag = lo + Math.random() * Math.max(0, hi - lo);
+    var ang = Math.random() * Math.PI * 2;
+    return { x: Math.round(Math.cos(ang) * mag), y: Math.round(Math.sin(ang) * mag), pad: hi + 1 };
+  }
+
+  function skylineTopsFor(state, key) {
+    var m = (state.config && state.config.skylineMask) || {};
+    if (key === "dusk" || key === "ember") return m.dusk || null;
+    if (key === "acid") return m.acid || null;
+    return m.clean || null;
+  }
+
+  // Draw the mixed Austin plates into the band; then the sky storm inside the skyline sky mask.
+  function drawAustinBgMix(state, ctx, width, height, cfgBg, scrollOff) {
+    var mix = computeBgMix(state);
+    var shake = postNukeBgShake(state);
+    var rect = null;
+    var i, r;
+    ctx.save();
+    if (shake) {
+      // overscan a few px so the jitter never exposes the band edges
+      var sc = 1 + (2 * shake.pad) / Math.max(1, width);
+      ctx.translate(width / 2 + shake.x, height * 0.275 + shake.y);
+      ctx.scale(sc, sc);
+      ctx.translate(-width / 2, -height * 0.275);
+    }
+    var baseA = ctx.globalAlpha;
+    for (i = 0; i < mix.length; i++) {
+      if (!(mix[i].a > 0.003)) continue;
+      ctx.globalAlpha = baseA * Math.min(1, mix[i].a);
+      r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff);
+      if (r) rect = r;
+    }
+    ctx.globalAlpha = baseA;
+    // sky storm (party-crash 28.02 / final boss) — only above the skyline silhouette
+    if (rect && state._skyStormMode && ns.Sega31x && ns.Sega31x.drawSkyStorm) {
+      var tops = null, j, tj;
+      for (i = 0; i < mix.length; i++) {
+        if (!(mix[i].a > 0.01)) continue;
+        tj = skylineTopsFor(state, mix[i].key === "prev" ? "dusk-clean" : mix[i].key);
+        if (!tj) continue;
+        if (!tops) tops = tj.slice();
+        else for (j = 0; j < tops.length && j < tj.length; j++) tops[j] = Math.min(tops[j], tj[j]);
+      }
+      ctx.save();
+      ctx.beginPath();
+      if (tops && tops.length) {
+        var n = tops.length;
+        ctx.moveTo(rect.x, rect.y - 4);
+        ctx.lineTo(rect.x + rect.w, rect.y - 4);
+        for (j = n - 1; j >= 0; j--) {
+          var yy = rect.y + tops[j] * rect.h;
+          ctx.lineTo(rect.x + ((j + 1) / n) * rect.w, yy);
+          ctx.lineTo(rect.x + (j / n) * rect.w, yy);
         }
-        if (post[austinKey]) return post[austinKey];
-        if (post.dusk) return post.dusk;
+        ctx.closePath();
+      } else {
+        ctx.rect(rect.x, rect.y, rect.w, rect.h * 0.25);
       }
+      ctx.clip();
+      ns.Sega31x.drawSkyStorm(state, ctx, rect);
+      ctx.restore();
     }
-    // sega43: real Austin strip for the style, else the CLOSEST real picture (never atlas stripes)
-    var cfgAb = state.config || {};
-    var strips = state.austinStrips;
-    if (strips && cfgAb.austinBgUseAustinNewPlates !== false && AUSTIN_STRIP_FALLBACK[style]) {
-      if (strips[style]) return strips[style];
-      var fam = AUSTIN_STRIP_FALLBACK[style];
-      var fi;
-      for (fi = 0; fi < fam.length; fi++) {
-        if (strips[fam[fi]]) return strips[fam[fi]];
-      }
-    }
-    if (plates) {
-      if (style === "postapoc-dayglow" && plates["postapoc-dayglow"]) return plates["postapoc-dayglow"];
-      if (style === "nuclear-winter" && plates["nuclear-winter"]) return plates["nuclear-winter"];
-      if (style === "ember" && plates.ember) return plates.ember;
-      if (style === "storm" && plates.storm) return plates.storm;
-      if (style === "violet" && plates.violet) return plates.violet;
-      if (style === "acid" && plates.acid) return plates.acid;
-      if (style === "night" && plates.night) return plates.night;
-      if (style === "dusk" && plates.dusk) return plates.dusk;
-      if (style === "filmic" && plates.filmic) return plates.filmic;
-      if (style === "racer" && plates.racer) return plates.racer;
-      // fallbacks
-      if ((style === "night" || style === "violet" || style === "storm") && plates.night) return plates.night;
-      if (plates.dusk) return plates.dusk;
-    }
-    if ((style === "night" || style === "violet" || style === "storm") && state.backgroundNight) {
-      return state.backgroundNight;
-    }
-    return state.background;
+    ctx.restore();
+    state._bgMixDebug = mix.map(function(m) { return m.key + ":" + (Math.round(m.a * 100) / 100); }).join(",");
+    return rect;
   }
 
   function drawBgGrade(state) {
@@ -591,6 +670,7 @@
       }
     } catch (eBg) {}
     ctx.restore();
+    return { x: dx, y: dy, w: dw, h: dh };
   }
 
   function drawSectionTitleBanner(state, ctx, width, height) {
@@ -699,27 +779,7 @@
 
   // sega24: procedural roadside props removed (bitmaps only)
 
-  function drawNukePlate(state, ctx, width, height) {
-    var img = state.nukeBg;
-    var a = state.nuclearBlast || 0;
-    // sega31g: during flash whiteout, force full-bleed nuke plate under opaque white
-    if ((state.nukeFlash > 0 || state.nukePlateUnderFlash) && a < 1) {
-      a = Math.max(a, 1);
-    }
-    if (!img || !img.complete || a <= 0.01) {
-      return;
-    }
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, a * 1.15);
-    // Flat full-bleed plate under the road (no parallax)
-    var iw = img.naturalWidth || img.width || 16;
-    var ih = img.naturalHeight || img.height || 9;
-    var scale = Math.max(width / iw, height / ih);
-    var dw = iw * scale;
-    var dh = ih * scale;
-    ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
-    ctx.restore();
-  }
+
 
   // ---- sega43: Sega Super Scaler nuke (sky plate + expanding mushroom, shimmer, pulsing core) ----
   function nukeWindow(state) {
@@ -765,9 +825,8 @@
     var c = state.config || {};
     var W = nukeWindow(state);
     if (!sky) {
-      // assets not in yet: old flat plate only (never frames 2–6 / procedural mushroom)
-      drawNukePlate(state, ctx, width, height);
-      return true;
+      // sega45: nuke-bg.png ditched — without the Sega sky, fall back to the procedural blast
+      return false;
     }
     var M = c.nukeSegaMaster || [1280, 720];
     var hor = c.nukeSegaHorizonY != null ? c.nukeSegaHorizonY : 499;
@@ -865,49 +924,13 @@
     ctx.restore();
   }
 
-  function drawNukeMushroomFrames(state, ctx, width, height) {
-    var cfgN = state.config || {};
-    var n = cfgN.nukeMushroomAnimFrames != null ? cfgN.nukeMushroomAnimFrames : 6;
-    if (!(n > 0)) return false;
-    if (!state._nukeMushroomPaths) {
-      var paths = [], i;
-      for (i = 1; i <= n; i++) {
-        paths.push('images/fx/nuke-mushroom-f0' + i + '.png');
-      }
-      state._nukeMushroomPaths = paths;
-    }
-    var imgs = ensureFxSequence(state, 'nukemush', state._nukeMushroomPaths);
-    if (imgs.length < Math.min(3, n)) return false; // need assets loaded
-    // One-shot non-looping: map nuclearBlastT across frames, hold last
-    var fps = cfgN.nukeMushroomAnimFps != null ? cfgN.nukeMushroomAnimFps : 8;
-    var loop = cfgN.nukeMushroomAnimLoop === true; // default false
-    var tBlast = state.nuclearBlastT || 0;
-    var idx = Math.floor(tBlast * fps);
-    if (loop) idx = idx % imgs.length;
-    else idx = Math.min(imgs.length - 1, Math.max(0, idx));
-    var img = imgs[idx];
-    if (!img) return false;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    var iw = img.naturalWidth || img.width;
-    var ih = img.naturalHeight || img.height;
-    var sc = Math.max(width / iw, height / ih);
-    var dw = iw * sc, dh = ih * sc;
-    ctx.globalAlpha = Math.min(1, (state.nuclearBlast || 1));
-    ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
-    ctx.restore();
-    return true;
-  }
+
 
   function drawNuclearBlast(state, ctx, width, height) {
     var a = state.nuclearBlast || 0;
     var t = state.nuclearBlastT || 0;
     var cx = width * 0.5;
     var cy = height * 0.36;
-    // sega31z: prefer 6-frame nuke mushroom one-shot when assets load
-    if (a > 0.01 && drawNukeMushroomFrames(state, ctx, width, height)) {
-      return;
-    }
     var flash;
     var stemH;
     var stemW;
@@ -930,8 +953,7 @@
     }
     ctx.save();
     // When plate is loaded, keep canvas nuke as light supplement only
-    var plateOn = !!(state.nukeBg && state.nukeBg.complete);
-    var mul = plateOn ? 0.45 : 1;
+    var mul = 1;
     // Sky wash (full-bleed tint — not size-scaled)
     flash = Math.min(1, a * 1.2) * mul;
     ctx.globalAlpha = flash * 0.5;
@@ -1027,8 +1049,64 @@
     ctx.restore();
   }
 
+  // sega45 C: 0..1 camera-to-road-centre weight (same envelope as the tunnel straightening)
+  function cameraCenterK(state) {
+    var c = state.config || {};
+    if (c.tunnelRoadCenter === false) return 0;
+    if (state.inTunnel) return 0;
+    var k = state._tunnelStraightK;
+    // full centring pushes her lane off-screen (lane centre ~ screen edge at her row), so centre partially
+    var amt = c.tunnelRoadCenterAmount != null ? c.tunnelRoadCenterAmount : 0.6;
+    return (k > 0) ? Math.min(1, k) * Math.max(0, Math.min(1, amt)) : 0;
+  }
+
+  // sega45 C: road centre x + half width at screen row y (from this frame's projected near rows)
+  function roadRowAt(state, y) {
+    var r = state._roadRows;
+    if (!r || r.length < 6) return null;
+    var i;
+    for (i = 0; i + 5 < r.length; i += 3) {
+      var y1 = r[i], y2 = r[i + 3];
+      if ((y <= y1 && y >= y2) || (y >= y1 && y <= y2)) {
+        var f = (y1 === y2) ? 0 : (y - y1) / (y2 - y1);
+        return { x: r[i + 1] + (r[i + 4] - r[i + 1]) * f, w: r[i + 2] + (r[i + 5] - r[i + 2]) * f };
+      }
+    }
+    // below the nearest row: extrapolate from the first two rows
+    var fy = (r[3] === r[0]) ? 0 : (y - r[0]) / (r[3] - r[0]);
+    return { x: r[1] + (r[4] - r[1]) * fy, w: r[2] + (r[5] - r[2]) * fy };
+  }
+
+  // sega45 D: lean frame toward the target lane only while the X tween is under way; straight on arrival
+  function tunnelLaneLean(state) {
+    var c = state.config || {};
+    var eps = c.tunnelLeanEpsilon != null ? c.tunnelLeanEpsilon : 0.03;
+    var target = (ns.State && ns.State.laneOffset) ? ns.State.laneOffset(state, state.lane || 0)
+      : ((c.laneOffsets || [-0.55, 0.55])[state.lane | 0]);
+    var diff = target - (state.playerX || 0);
+    if (Math.abs(diff) <= eps) return 0;
+    return diff < 0 ? -1 : 1;
+  }
+
+  // sega45 D: tunnel interior lane X follows the tweened playerX (was: snapped to the target lane)
+  function tunnelTweenLaneX(state) {
+    var offs = (state.config && state.config.laneOffsets) || [-0.55, 0.55];
+    var o0 = offs[0], o1 = offs[offs.length - 1];
+    var x0, x1;
+    if (ns.Brains && ns.Brains.laneScreenX) {
+      x0 = ns.Brains.laneScreenX(state, 0);
+      x1 = ns.Brains.laneScreenX(state, offs.length - 1);
+    } else {
+      x0 = state.width / 2 + o0 * state.width * 0.22;
+      x1 = state.width / 2 + o1 * state.width * 0.22;
+    }
+    var f = (o1 !== o0) ? ((state.playerX || 0) - o0) / (o1 - o0) : 0;
+    f = Math.max(0, Math.min(1, f));
+    return x0 + (x1 - x0) * f;
+  }
+
 function renderWorld(state) {
-    if (!state.background || !state.sprites || !state.segments.length) {
+    if (!state.sprites || !state.segments.length) {
       return;
     }
 
@@ -1138,7 +1216,11 @@ function renderWorld(state) {
           var scrollOff = (cfgBg.austinBgScrollEnabled !== false)
             ? (state.austinBgScrollOffset != null ? state.austinBgScrollOffset : state.treeOffset)
             : 0;
-          drawBgSingleLayer(ctx, bgPlate, width, height, cfgBg, scrollOff);
+          if (cfgBg.austinBgUseAustinNewPlates !== false && state.austinStrips) {
+            drawAustinBgMix(state, ctx, width, height, cfgBg, scrollOff); // sega45 pin map + blends
+          } else {
+            drawBgSingleLayer(ctx, bgPlate, width, height, cfgBg, scrollOff);
+          }
           if (ns.Sega31x && ns.Sega31x.drawFreshPostNukeOverlay) {
             var yFracPn = cfgBg.austinBgSingleYFrac != null ? cfgBg.austinBgSingleYFrac : 0;
             var hFracPn = cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55;
@@ -1147,6 +1229,7 @@ function renderWorld(state) {
         } else {
           // Layered parallax: sky (far) / landscape (mid) / city (near)
           // sega31v: seal horizon black-gap — extend/overlap layers to meet road; config-tunable
+          if (bgPlate) {
           var skyY = cfgBg.bgSkyYFrac != null ? cfgBg.bgSkyYFrac : 0.0;
           var skyH = cfgBg.bgSkyHFrac != null ? cfgBg.bgSkyHFrac : 0.72;
           var hilY = cfgBg.bgHillsYFrac != null ? cfgBg.bgHillsYFrac : 0.12;
@@ -1156,6 +1239,7 @@ function renderWorld(state) {
           drawBgLayer(ctx, bgPlate, width, height, BACKGROUND.SKY, state.skyOffset, state.resolution * state.skySpeed * playerY, skyY, skyH);
           drawBgLayer(ctx, bgPlate, width, height, BACKGROUND.HILLS, state.hillOffset, state.resolution * state.hillSpeed * playerY, hilY, hilH);
           drawBgLayer(ctx, bgPlate, width, height, BACKGROUND.TREES, state.treeOffset, state.resolution * state.treeSpeed * playerY, treY, treH);
+          }
         }
         // Fill band behind road horizon so no black void between sky/city plate and road tip
         // sega32: when roadNoBgFlashThrough, keep seal at/above horizon only (no under-road paint)
@@ -1174,6 +1258,15 @@ function renderWorld(state) {
           }
         }
       }
+    }
+
+    // sega45: city plate fades to black as the tunnel mouth appears (no city behind the mouth)
+    if (!state.inTunnel && state._tunnelCityAlpha != null && state._tunnelCityAlpha < 0.999) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, 1 - state._tunnelCityAlpha));
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, width, Math.max(1, Math.floor(bgHorizonY) + 2));
+      ctx.restore();
     }
 
     // sega32: end BG-above-horizon clip before nuke/road (full-screen flash must not be clipped).
@@ -1205,7 +1298,7 @@ function renderWorld(state) {
     if (state.nuclearBlast > 0 || state.nukeFlash > 0 || state.nukePlateUnderFlash) {
       // sega43: Sega nuke owns the layer (no 6-frame one-shot / procedural mushroom)
       if (!drawNukeSega(state, ctx, width, height)) {
-        drawNukePlate(state, ctx, width, height);
+        // sega45: nuke-bg.png plate + 6-frame mushroom ditched — procedural blast only if Sega art missing
         if (state.nuclearBlast > 0) {
           drawNuclearBlast(state, ctx, width, height);
         }
@@ -1227,6 +1320,16 @@ function renderWorld(state) {
       ctx.globalAlpha = Math.max(0, roadAlphaSega31x);
     }
 
+    // sega45 C: ROOT CAUSE of the "bend" before the tunnel — tunnelStraightK zeroes seg.curve (the
+    // road IS geometrically straight) but the camera stays at playerX*roadWidth (her lane, ±0.55), so
+    // the straight road is projected off-axis and reads as a diagonal/right bend toward the horizon.
+    // Fix: ease the camera to the road centre with the same straightK (81.5 → exit), so the road is
+    // dead straight, flat AND centred; she is drawn at her real projected lane X (drawPlayerDeferred).
+    var camCenterK = cameraCenterK(state);
+    var camX = state.playerX * state.roadWidth * (1 - camCenterK);
+    state._camCenterK = camCenterK;
+    var roadRows = state._roadRows || (state._roadRows = []);
+    roadRows.length = 0;
     for (n = 0; n < state.drawDistance; n++) {
       if (skipRoadSega31x || (ns.Sega31x && ns.Sega31x.shouldSkipRoad && ns.Sega31x.shouldSkipRoad(state))) {
         break;
@@ -1238,7 +1341,7 @@ function renderWorld(state) {
 
       Util.project(
         segment.p1,
-        (state.playerX * state.roadWidth) - x,
+        camX - x,
         playerY + state.cameraHeight,
         state.position - (segment.looped ? state.trackLength : 0),
         state.cameraDepth,
@@ -1249,7 +1352,7 @@ function renderWorld(state) {
 
       Util.project(
         segment.p2,
-        (state.playerX * state.roadWidth) - x - dx,
+        camX - x - dx,
         playerY + state.cameraHeight,
         state.position - (segment.looped ? state.trackLength : 0),
         state.cameraDepth,
@@ -1260,6 +1363,10 @@ function renderWorld(state) {
 
       x = x + dx;
       dx = dx + segment.curve;
+      // sega45: near road rows (screen y → centre x / half width) for her projected lane X
+      if (n < 80 && segment.p1.camera.z > state.cameraDepth) {
+        roadRows.push(segment.p1.screen.y, segment.p1.screen.x, segment.p1.screen.w);
+      }
 
       if (
         (segment.p1.camera.z <= state.cameraDepth) ||
@@ -1310,7 +1417,7 @@ function renderWorld(state) {
     if (skipRoadSega31x || state.inTunnel || state._tunnelHideRoad || state.tunnelApproaching || state.tunnelExiting) {
       var elevY = (state.playerElevScreenY != null) ? (height * state.playerElevScreenY) : (height * 0.78);
       drawPlayerNow = {
-        steerLean: state.lane === 0 ? -1 : 1,
+        steerLean: tunnelLaneLean(state),
         destY: elevY,
         updown: 0,
         tunnelForced: true
@@ -1822,20 +1929,24 @@ function renderWorld(state) {
       destY = destY + height * state._tunnelPlayerOffY;
     }
     // sega37: outside tunnel OutRun keeps player centered (road/camera shifts with playerX).
-    // Inside tunnel / hideRoad the road is skipped — must draw at lane screen X so L/R works.
+    // sega45: interior / hidden road → tweened lane X (smooth, no snap). Approach with the camera
+    // centred → her real projected lane X on the (centred) road, which also tweens with playerX.
     var playerDrawXBase = width / 2;
-    var tunnelLaneX = (state.config && state.config.tunnelPlayerLaneScreenX !== false) &&
-      (state.inTunnel || state._tunnelHideRoad || (drawPlayerNow && drawPlayerNow.tunnelForced) ||
-       state._tunnelPhase === 'blackIn' || state._tunnelPhase === 'inside' ||
-       state._tunnelPhase === 'shrinkOut' || state._tunnelPhase === 'blackOut' ||
-       state._tunnelPhase === 'roadWait');
-    if (tunnelLaneX) {
-      if (ns.Brains && ns.Brains.laneScreenX) {
-        playerDrawXBase = ns.Brains.laneScreenX(state, state.lane != null ? state.lane : 0);
-      } else {
-        var offs = (state.config && state.config.laneOffsets) || [-0.55, 0.55];
-        var li = Math.max(0, Math.min(offs.length - 1, state.lane | 0));
-        playerDrawXBase = width / 2 + offs[li] * width * 0.22;
+    var interiorLaneX = (state.config && state.config.tunnelPlayerLaneScreenX !== false) &&
+      (state.inTunnel || state._tunnelHideRoad ||
+       state._tunnelPhase === 'blackIn' || state._tunnelPhase === 'blackHold' || state._tunnelPhase === 'inside' ||
+       state._tunnelPhase === 'shrinkOut' || state._tunnelPhase === 'whiteUp' ||
+       state._tunnelPhase === 'blackOut' || state._tunnelPhase === 'roadWait');
+    if (interiorLaneX) {
+      playerDrawXBase = tunnelTweenLaneX(state);
+    } else if (state._camCenterK > 0) {
+      // her real lane position on the centred road, at her ground row (shadow Y)
+      var gRowY = height * ((state.config && state.config.playerShadowScreenY != null) ? state.config.playerShadowScreenY : 0.94);
+      var row = roadRowAt(state, gRowY);
+      if (row) {
+        playerDrawXBase = row.x + (state.playerX || 0) * row.w;
+        var mxf = (state.config && state.config.tunnelApproachPlayerMinXFrac != null) ? state.config.tunnelApproachPlayerMinXFrac : 0.15;
+        playerDrawXBase = Math.max(width * mxf, Math.min(width * (1 - mxf), playerDrawXBase));
       }
     }
     if (state._tunnelPlayerOffX) {
@@ -1888,6 +1999,8 @@ function renderWorld(state) {
       // sega31k: zap hit — rapid flip between PLAYER_LEFT / PLAYER_RIGHT
       // sega31s: zap shake −30% (zapHitShakeMult 0.70) — slower flip + smaller X jitter
       var steerAmt = state.speed * drawPlayerNow.steerLean * 0.35;
+      // sega45 D: tunnel path — lean only during the lane move (road may be frozen → speed-independent)
+      if (drawPlayerNow.tunnelForced) steerAmt = drawPlayerNow.steerLean;
       var zapShakeMult = (cfgP.zapHitShakeMult != null) ? cfgP.zapHitShakeMult : 1;
       if ((cfgP.zapHitShakeLeftRight !== false) && state.shockFlash > 0) {
         var tick = (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -1995,9 +2108,6 @@ function renderWorld(state) {
         if (ns.Brains && ns.Brains.render && !(ns.Sega31 && ns.Sega31.trainerOn && !ns.Sega31.trainerOn(state, "showBrains"))) {
           ns.Brains.render(state);
         }
-        if (ns.CyberFlies && ns.CyberFlies.render) {
-          ns.CyberFlies.render(state);
-        }
         // sega31k: player always in front of brains
         drawPlayerDeferred(state);
         if (ns.Fx && ns.Fx.render && !(ns.Sega31 && ns.Sega31.trainerOn && !ns.Sega31.trainerOn(state, "showFx"))) {
@@ -2023,6 +2133,15 @@ function renderWorld(state) {
         state.ctx.setTransform(1, 0, 0, 1, 0, 0);
         state.ctx.globalAlpha = 1;
         state.ctx.fillStyle = "#000";
+        state.ctx.fillRect(0, 0, state.width, state.height);
+        state.ctx.restore();
+      }
+      // sega45: tunnel exit WHITE-OUT (over everything, incl. player)
+      if (state._tunnelWhite > 0.001) {
+        state.ctx.save();
+        state.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        state.ctx.globalAlpha = Math.min(1, state._tunnelWhite);
+        state.ctx.fillStyle = "#fff";
         state.ctx.fillRect(0, 0, state.width, state.height);
         state.ctx.restore();
       }
