@@ -459,12 +459,63 @@
       sh.until = t + burst * (0.6 + Math.random() * 0.8);
       sh.next = sh.until + gMin + Math.random() * Math.max(0, gMax - gMin);
     }
-    if (t >= sh.until) return null;
-    var lo = c.postNukeBgShakeMinPx != null ? c.postNukeBgShakeMinPx : 1;
-    var hi = c.postNukeBgShakeMaxPx != null ? c.postNukeBgShakeMaxPx : 3;
-    var mag = lo + Math.random() * Math.max(0, hi - lo);
-    var ang = Math.random() * Math.PI * 2;
-    return { x: Math.round(Math.cos(ang) * mag), y: Math.round(Math.sin(ang) * mag), pad: hi + 1 };
+    var lo = c.postNukeBgShakeMinPx != null ? c.postNukeBgShakeMinPx : 2;
+    var hi = c.postNukeBgShakeMaxPx != null ? c.postNukeBgShakeMaxPx : 5;
+    var sp = c.postNukeBgShakeSpikePx || [6, 8];
+    var spHi = Array.isArray(sp) ? (sp[1] != null ? sp[1] : sp[0]) : sp;
+    var pad = Math.max(hi, spHi || 0) + 1;
+    if (t >= sh.until) return { x: 0, y: 0, pad: pad };
+    // sega48: erratic — each offset held a random 1..N frames; x/y independent; occasional sharp spike
+    if (!(sh.holdLeft > 0) || sh.x == null) {
+      var holdMax = Math.max(1, c.postNukeBgShakeHoldFramesMax != null ? c.postNukeBgShakeHoldFramesMax : 4);
+      sh.holdLeft = 1 + Math.floor(Math.random() * holdMax);
+      var roll = function() {
+        var spike = Math.random() < (c.postNukeBgShakeSpikeChance != null ? c.postNukeBgShakeSpikeChance : 0.1);
+        var a = spike ? (Array.isArray(sp) ? sp[0] : sp) : lo, b = spike ? spHi : hi;
+        return (Math.random() < 0.5 ? -1 : 1) * Math.round(a + Math.random() * Math.max(0, b - a));
+      };
+      sh.x = roll(); sh.y = roll();
+    }
+    sh.holdLeft--;
+    return { x: sh.x, y: sh.y, pad: pad };
+  }
+
+  // sega48: steering/curve parallax (px, eased) + distance-driven zoom, shared by every Austin plate,
+  // the lightning skyline mask and the starfield
+  function updateBgParallaxZoom(state) {
+    var c = state.config || {};
+    var t = state.songClock != null ? state.songClock : 0;
+    var last = state._bgPzT;
+    var dt = (last == null || t < last || t - last > 0.5) ? 0 : (t - last);
+    state._bgPzT = t;
+    var curve = 0;
+    try {
+      var seg = ns.Track.findSegment(state, state.position + state.playerZ);
+      curve = seg && seg.curve ? seg.curve : 0;
+    } catch (eC) {}
+    var laneTo = (ns.State && ns.State.laneOffset) ? ns.State.laneOffset(state, state.lane || 0) : (state.playerX || 0);
+    var steer = Math.max(-1, Math.min(1, (laneTo - (state.playerX || 0)) * 1.5));
+    var str = c.bgParallaxStrength != null ? c.bgParallaxStrength : 6;
+    var mx = c.bgParallaxMax != null ? c.bgParallaxMax : 4;
+    var target = Math.max(-mx, Math.min(mx, -str * (curve / 4 + steer)));
+    if (state.phase !== "running") target = 0;
+    var ease = Math.max(0.02, c.bgParallaxEase != null ? c.bgParallaxEase : 0.4);
+    var cur = state._bgParallaxX || 0;
+    cur += (target - cur) * (dt > 0 ? Math.min(1, dt / ease) : 0);
+    state._bgParallaxX = cur;
+    // zoom: accumulates only while the road actually moves (pauses on freeze / boss stop)
+    if (state.phase === "menu" || t < 0.3) { state._bgZoomDist = 0; state._bgZoomPos = state.position; }
+    var p0 = state._bgZoomPos, p1 = state.position || 0;
+    if (p0 != null && state.phase === "running") {
+      var d = p1 - p0;
+      if (d < -state.trackLength / 2) d += state.trackLength;
+      if (d > 0 && d < state.trackLength / 2) state._bgZoomDist = (state._bgZoomDist || 0) + d;
+    }
+    state._bgZoomPos = p1;
+    var z0 = c.bgZoomStart != null ? c.bgZoomStart : 1, z1 = c.bgZoomEnd != null ? c.bgZoomEnd : 1.2;
+    var u = (c.bgZoomByDistance === false) ? (t / 215)
+      : ((state._bgZoomDist || 0) / Math.max(1, c.bgZoomFullDistance || 450000));
+    state._bgZoom = z0 + (z1 - z0) * Math.max(0, Math.min(1, u));
   }
 
   function skylineTopsFor(state, key) {
@@ -481,13 +532,15 @@
     var rect = null;
     var i, r;
     ctx.save();
-    if (shake) {
-      // overscan a few px so the jitter never exposes the band edges
-      var sc = 1 + (2 * shake.pad) / Math.max(1, width);
-      ctx.translate(width / 2 + shake.x, height * 0.275 + shake.y);
-      ctx.scale(sc, sc);
-      ctx.translate(-width / 2, -height * 0.275);
-    }
+    // sega48: one transform = zoom (anchored at the skyline base / horizon) x overscan, + parallax + shake
+    var cfgPz = state.config || {};
+    var pmx = cfgPz.bgParallaxMax != null ? cfgPz.bgParallaxMax : 4;
+    var pad = (shake ? shake.pad : 0) + Math.abs(pmx) + 1;
+    var anchorY = height * ((cfgBg.austinBgSingleYFrac != null ? cfgBg.austinBgSingleYFrac : 0) + (cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55));
+    var zsc = (state._bgZoom || 1) * (1 + (2 * pad) / Math.max(1, width)) * (1 + pad / Math.max(1, anchorY));
+    ctx.translate(width / 2 + (state._bgParallaxX || 0) + (shake ? shake.x : 0), anchorY + (shake ? shake.y : 0));
+    ctx.scale(zsc, zsc);
+    ctx.translate(-width / 2, -anchorY);
     var baseA = ctx.globalAlpha;
     for (i = 0; i < mix.length; i++) {
       if (!(mix[i].a > 0.003)) continue;
@@ -507,6 +560,18 @@
         else for (j = 0; j < tops.length && j < tj.length; j++) tops[j] = Math.min(tops[j], tj[j]);
       }
       ctx.save();
+      // sega48: skyline clip cached as a Path2D per (plates, rect) instead of rebuilt every frame
+      var clipKey = mix.map(function(m) { return m.a > 0.01 ? m.key : ""; }).join("|") + "@" + Math.round(rect.x) + "," + Math.round(rect.y) + "," + Math.round(rect.w) + "," + Math.round(rect.h);
+      var cc = state._skyClipCache;
+      if (typeof Path2D !== "undefined" && cc && cc.key === clipKey) { ctx.clip(cc.path); }
+      else if (typeof Path2D !== "undefined" && tops && tops.length) {
+        var pth = new Path2D(), nn = tops.length, jj;
+        pth.moveTo(rect.x, rect.y - 4); pth.lineTo(rect.x + rect.w, rect.y - 4);
+        for (jj = nn - 1; jj >= 0; jj--) { var y3 = rect.y + tops[jj] * rect.h; pth.lineTo(rect.x + ((jj + 1) / nn) * rect.w, y3); pth.lineTo(rect.x + (jj / nn) * rect.w, y3); }
+        pth.closePath();
+        state._skyClipCache = { key: clipKey, path: pth };
+        ctx.clip(pth);
+      } else {
       ctx.beginPath();
       if (tops && tops.length) {
         var n = tops.length;
@@ -522,6 +587,7 @@
         ctx.rect(rect.x, rect.y, rect.w, rect.h * 0.25);
       }
       ctx.clip();
+      }
       ns.Sega31x.drawSkyStorm(state, ctx, rect);
       ctx.restore();
     }
@@ -1057,7 +1123,20 @@
     var k = state._tunnelStraightK;
     // full centring pushes her lane off-screen (lane centre ~ screen edge at her row), so centre partially
     var amt = c.tunnelRoadCenterAmount != null ? c.tunnelRoadCenterAmount : 0.6;
-    return (k > 0) ? Math.min(1, k) * Math.max(0, Math.min(1, amt)) : 0;
+    var target = (k > 0) ? Math.min(1, k) * Math.max(0, Math.min(1, amt)) : 0;
+    // sega48: cap her on-screen offset from centre (via the camera weight, so she stays ON her lane)
+    var capF = c.tunnelApproachMaxOffsetFrac != null ? c.tunnelApproachMaxOffsetFrac : 0.12;
+    var rw = state._roadRowWAtPlayer, px = Math.abs(state.playerX || 0);
+    if (capF >= 0 && rw > 1 && px > 0.01) target = Math.min(target, (capF * state.width) / (px * rw));
+    // sega48: ease toward the target over approachCenterEase seconds (no snap in or out)
+    var ease = Math.max(0.05, c.approachCenterEase != null ? c.approachCenterEase : 1.0);
+    var t = state.songClock || 0, lastT = state._camKT;
+    var cur = state._camKSm != null ? state._camKSm : target;
+    var dt = (lastT == null || t < lastT || t - lastT > 0.5) ? 1 : (t - lastT);
+    var step = dt / ease;
+    cur = cur + Math.max(-step, Math.min(step, target - cur));
+    state._camKSm = cur; state._camKT = t;
+    return cur;
   }
 
   // sega45 C: road centre x + half width at screen row y (from this frame's projected near rows)
@@ -1109,6 +1188,7 @@ function renderWorld(state) {
     if (!state.sprites || !state.segments.length) {
       return;
     }
+    try { updateBgParallaxZoom(state); } catch (ePz) {} // sega48
 
     // Losing / Protect karaoke: hide road — UI draws lyrics + storyboard
     if (state.finaleMode === "karaoke") {
@@ -1267,6 +1347,9 @@ function renderWorld(state) {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, width, Math.max(1, Math.floor(bgHorizonY) + 2));
       ctx.restore();
+    }
+    if (!state.inTunnel && state._starfieldA > 0 && ns.Sega31x && ns.Sega31x.drawStarfield) {
+      ns.Sega31x.drawStarfield(state, ctx, width, Math.max(1, Math.floor(bgHorizonY)), state._starfieldA); // sega48
     }
 
     // sega32: end BG-above-horizon clip before nuke/road (full-screen flash must not be clipped).
@@ -1923,7 +2006,7 @@ function renderWorld(state) {
     } else if (state._tunnelPlayerScale != null) {
       tunnelScale = state._tunnelPlayerScale;
     }
-    if (tunnelScale < 0.08) tunnelScale = 0.08;
+    if (tunnelScale < 0.08 && state._tunnelExitConverge == null) tunnelScale = 0.08;
     pScale *= tunnelScale;
     if (state._tunnelPlayerOffY) {
       destY = destY + height * state._tunnelPlayerOffY;
@@ -1939,11 +2022,17 @@ function renderWorld(state) {
        state._tunnelPhase === 'blackOut' || state._tunnelPhase === 'roadWait');
     if (interiorLaneX) {
       playerDrawXBase = tunnelTweenLaneX(state);
+    } else if (!(state._camCenterK > 0)) {
+      var gRowY0 = height * ((state.config && state.config.playerShadowScreenY != null) ? state.config.playerShadowScreenY : 0.94);
+      var row0 = roadRowAt(state, gRowY0); if (row0) state._roadRowWAtPlayer = row0.w;
+    }
+    if (interiorLaneX) {
     } else if (state._camCenterK > 0) {
       // her real lane position on the centred road, at her ground row (shadow Y)
       var gRowY = height * ((state.config && state.config.playerShadowScreenY != null) ? state.config.playerShadowScreenY : 0.94);
       var row = roadRowAt(state, gRowY);
       if (row) {
+        state._roadRowWAtPlayer = row.w;
         playerDrawXBase = row.x + (state.playerX || 0) * row.w;
         var mxf = (state.config && state.config.tunnelApproachPlayerMinXFrac != null) ? state.config.tunnelApproachPlayerMinXFrac : 0.15;
         playerDrawXBase = Math.max(width * mxf, Math.min(width * (1 - mxf), playerDrawXBase));
@@ -1952,6 +2041,15 @@ function renderWorld(state) {
     if (state._tunnelPlayerOffX) {
       playerDrawXBase = playerDrawXBase + width * state._tunnelPlayerOffX;
     }
+    // sega48: exit shrink converges on the vanishing point (offset from VP scales with her size)
+    var exitConv = state._tunnelExitConverge;
+    if (exitConv != null) {
+      var cfgE = state.config || {};
+      var vx = width * (cfgE.tunnelExitTargetX != null ? cfgE.tunnelExitTargetX : 0.5);
+      var vy = height * (cfgE.tunnelExitTargetY != null ? cfgE.tunnelExitTargetY : 0.48);
+      playerDrawXBase = vx + (playerDrawXBase - vx) * exitConv;
+      destY = vy + (destY - vy) * exitConv;
+    } else
     // Aim slightly toward mouth center while shrinking
     if ((state._tunnelPlayerShrink > 0.001 || state._tunnelExitShrink > 0.001) && state._tunnelMouthRect) {
       var mr = state._tunnelMouthRect;
@@ -1961,7 +2059,7 @@ function renderWorld(state) {
     }
     // sega31n: apply elev Y during winCruise BEFORE centerY/horizon blend (no ground snap)
     // sega35: skip re-blend while tunnel shrink aims toward mouth (would fight OffY)
-    var tunnelShrinking = (state._tunnelPlayerShrink > 0.001) || (state._tunnelExitShrink > 0.001);
+    var tunnelShrinking = (state._tunnelPlayerShrink > 0.001) || (state._tunnelExitShrink > 0.001) || (exitConv != null);
     if (state.playerElevScreenY != null && !tunnelShrinking) {
       var elevTargetY = height * state.playerElevScreenY;
       destY = destY + (elevTargetY - destY) * 0.85;

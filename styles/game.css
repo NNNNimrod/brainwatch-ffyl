@@ -1329,3 +1329,16 @@ button {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* sega48: THRUSTERS / HACKED stacked power-up title (fits phone width) */
+.death-flash.powerup-title {
+  white-space: pre-line;
+  font-size: clamp(2rem, 11vw, 5rem);
+  line-height: 1.08;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+/* sega48: loser screens without the blood / green hack overlays (text, score, buttons kept) */
+.finale-fx.no-blood .finale-blood { display: none !important; }
+.death-flash.no-blood { background: transparent; }
+.overlay.no-hack, .finale-fx.no-hack { filter: none; }

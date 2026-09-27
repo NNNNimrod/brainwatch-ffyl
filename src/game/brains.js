@@ -1774,11 +1774,41 @@
   function drawLightning(ctx, bolt) {
     var alpha = clamp(bolt.life / bolt.maxLife, 0, 1);
     var jag = bolt.dramatic ? 55 : 30;
-    var midX = (bolt.x1 + bolt.x2) / 2 + (Math.random() - 0.5) * jag;
-    var midY = (bolt.y1 + bolt.y2) / 2 + (Math.random() - 0.5) * (bolt.dramatic ? 36 : 20);
-    var mid2X = (bolt.x1 + bolt.x2) / 2 + (Math.random() - 0.5) * (jag + 10);
-    var mid2Y = (bolt.y1 * 0.35 + bolt.y2 * 0.65) + (Math.random() - 0.5) * (bolt.dramatic ? 40 : 25);
+    // sega48: jitter re-rolled every lightningReuseFrames frames (not every frame)
+    var cfgL = (window.ApexRacer && ApexRacer.CONFIG) || {};
+    var reuse = Math.max(1, cfgL.lightningReuseFrames || 3);
+    bolt._jn = (bolt._jn || 0) + 1;
+    if (!bolt._jit || bolt._jn % reuse === 0) {
+      bolt._jit = [(Math.random() - 0.5) * jag, (Math.random() - 0.5) * (bolt.dramatic ? 36 : 20),
+        (Math.random() - 0.5) * (jag + 10), (Math.random() - 0.5) * (bolt.dramatic ? 40 : 25)];
+    }
+    var midX = (bolt.x1 + bolt.x2) / 2 + bolt._jit[0];
+    var midY = (bolt.y1 + bolt.y2) / 2 + bolt._jit[1];
+    var mid2X = (bolt.x1 + bolt.x2) / 2 + bolt._jit[2];
+    var mid2Y = (bolt.y1 * 0.35 + bolt.y2 * 0.65) + bolt._jit[3];
     var thick = bolt.thick || bolt.dramatic;
+    if (cfgL.lightningNoShadowBlur !== false) {
+      ctx.save();
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      var glowCol = bolt.roadHit ? "#44aaff" : "#ff66aa";
+      var passes = [[glowCol, thick ? 18 : 12, 0.16], [glowCol, thick ? 11 : 8, 0.26],
+        [bolt.roadHit ? "#88ddff" : "#ffe066", thick ? 7 : 4, 1], ["#ffffff", thick ? 2.4 : 1.5, 1]];
+      if (bolt.dramatic && !bolt.roadHit) passes.splice(2, 0, ["#7dffef", 10, 0.55]);
+      ctx.beginPath();
+      ctx.moveTo(bolt.x1, bolt.y1); ctx.lineTo(midX, midY); ctx.lineTo(mid2X, mid2Y); ctx.lineTo(bolt.x2, bolt.y2);
+      for (var pi = 0; pi < passes.length; pi++) {
+        ctx.globalAlpha = alpha * passes[pi][2]; ctx.strokeStyle = passes[pi][0]; ctx.lineWidth = passes[pi][1]; ctx.stroke();
+      }
+      if (bolt.roadHit) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(40, 20, 10, " + (0.55 * alpha).toFixed(2) + ")";
+        ctx.beginPath(); ctx.ellipse(bolt.x2, bolt.y2, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255, 220, 120, " + (0.45 * alpha).toFixed(2) + ")";
+        ctx.beginPath(); ctx.arc(bolt.x2, bolt.y2, 6, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.globalAlpha = alpha;

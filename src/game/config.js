@@ -23,6 +23,20 @@
     roadWidth: 2000,
     segmentLength: 200,
     rumbleLength: 3,
+
+    // ---- sega48 knobs (editor "sega48 knobs") ----
+    roadStraightStart: 75.5, roadStraightBy: 77.5,      // road dead straight/flat by song time (was 81.5 via tunnelStraightLeadSec)
+    approachLaneOffsetScale: 0.3,  // lanes pulled toward road centre while straight (camera ~on axis, no side lurch)
+    approachCenterEase: 1.0,       // camera-centring weight eases in/out over this many sec
+    tunnelApproachMaxOffsetFrac: 0.12, // her on-screen offset from centre capped (via camera weight) on approach
+    starfieldEnabled: true, starfieldFadeStart: 78.0, starfieldFadeDur: 1.5, starfieldHoldUntil: 84.5, // city -> black starfield before the mouth
+    tunnelExitConverge: true, tunnelExitTargetX: 0.5, tunnelExitTargetY: 0.48, tunnelExitEase: "easeInOutCubic", // exit shrinks into the VP
+    lightningPrebake: true, lightningMaxBolts: 4, lightningBranchDepth: 2, lightningReuseFrames: 3, lightningNoShadowBlur: true,
+    bgParallaxStrength: 6, bgParallaxMax: 4, bgParallaxEase: 0.4, // px per unit curve/steer, px cap, smoothing sec
+    bgZoomStart: 1.0, bgZoomEnd: 1.2, bgZoomByDistance: true, bgZoomFullDistance: 1200000, // plates zoom toward the city with road distance
+    postNukeBgShakeSpikeChance: 0.1, postNukeBgShakeSpikePx: [6, 8], postNukeBgShakeHoldFramesMax: 4,
+    powerupTitleText: "THRUSTERS HACKED", // big power-up title (stacked) + toast
+    loserBloodFx: false, loserHackFx: false, // lose/death screens: no blood drips / no green hack tint
     roadStartLines: false, // sega46: false = no white START / black FINISH stripes anywhere on the road (editor 'queued for sega46')
     lanes: 2,
     fieldOfView: 100,
@@ -112,9 +126,9 @@
       climbPerSecond: 24,
       climbPauseOnHit: 2.5,
       speedKnockFactor: 0.72,
-      banner: "MAD MAX MODE ENGAGED",
+      banner: "THRUSTERS HACKED", // sega48 (was "MAD MAX MODE ENGAGED")
       unlockBanner: "666 POWER UNLOCKED",
-      bannerText: "MAD MAX",
+      bannerText: "THRUSTERS HACKED", // sega48 (was "MAD MAX")
       bannerGlow: "green",
       bannerCentered: true,
       accelMult: 2.0,
@@ -239,7 +253,7 @@
     titleLogoMaxVh: 31,
     madMaxBannerGlow: "green",
     madMaxBannerCentered: true,
-    madMaxBannerText: "MAD MAX",
+    madMaxBannerText: "THRUSTERS HACKED", // sega48 (was "MAD MAX")
     deathBannerGlow: "red",
     pauseButton: true,
     pauseButtonLabel: "PAUSE",
@@ -359,7 +373,7 @@
     elevTier3DurationSec: 5.0,
     elevTier3ExpandRateMult: 0.10,
     elevTier3CollectHeartAddsSec: 5.0,
-    elevTier3HeartsOfferedEverySec: 5.0,
+    elevTier3HeartsOfferedEverySec: 7.8125, // sega48 hearts x0.64 (was 5.0)
     elevTier3HeartsPerOffer: 3,
     elevTier3ReturnToTier2SlowMult: 1.5,
     elevFirstPersonReturnSlowMult: 1.5,
@@ -368,7 +382,7 @@
     elevTier2AloftRules: false, // sega31n: superseded by continuous altitude
     elevTier2DurationSec: 5.0,
     elevTier2CollectHeartAddsSec: 5.0,
-    elevTier2HeartsOfferedEverySec: 5.0,
+    elevTier2HeartsOfferedEverySec: 7.8125, // sega48 hearts x0.64 (was 5.0)
     elevTier2HeartsPerOffer: 3,
     elevTier2ReturnToTier1: true,
     elevTier2ScreenY: 0.62, // legacy; continuous uses elevCeilingScreenY
@@ -453,7 +467,7 @@
     heartDropInitialVy: 0,
     heartSpawnScreenY: -0.12, // sega31m a little higher / more off-top
     heartDropEndScaleMult: 0.25, // sega31k shrink to 25% while falling
-    heartSpawnRateMult: 5, // sega31k 5× spawn rate
+    heartSpawnRateMult: 3.2, // sega48: hearts x0.64 whole game (was 5; lane-swap/pre-boss/post-boss mults stack on top)
     heartNotFromRoadHorizon: true,
     heartDropLingerSec: 1.0,
     heartDropScaleToNormalInFlight: true,
@@ -611,11 +625,11 @@
     austinBgLazyStrips: [["violet", 20], ["green-clean", 70], ["dusk", 140], ["acid", 141]],
     // sega45 post-nuke (156.5+): slow cross-fade between the two fire plates + background-only shake
     postNukeFirePlates: ["dusk", "acid"],
-    postNukeFireHoldSec: 4.0,
-    postNukeFireFadeSec: 2.0,
+    postNukeFireHoldSec: 2.67, // sega48 (was 4.0)
+    postNukeFireFadeSec: 1.33, // sega48 (was 2.0)
     postNukeBgShakeEnabled: true,
-    postNukeBgShakeMinPx: 1,
-    postNukeBgShakeMaxPx: 3,
+    postNukeBgShakeMinPx: 2, // sega48 (was 1)
+    postNukeBgShakeMaxPx: 5, // sega48 (was 3)
     postNukeBgShakeBurstSec: 0.35,
     postNukeBgShakeGapMinSec: 1.2,
     postNukeBgShakeGapMaxSec: 3.5,
@@ -818,9 +832,9 @@
     tunnelCenterRushDamage: null, // null = medium brainZap damage
     // --- sega45 tunnel brains: horizon -> locked random lane (like cybercabs), tiny or medium; dodge or shoot ---
     tunnelBrainsEnabled: true,
-    tunnelBrainSpawnEverySec: 0.9,
+    tunnelBrainSpawnEverySec: 1.44, // sega48 x1.6 (was 0.9)
     tunnelBrainTinyChance: 0.5,
-    tunnelBrainSpeed: 0.6, // path fraction / sec (0.6 ≈ 1.7s horizon -> player)
+    tunnelBrainSpeed: 0.96, // sega48 x1.6 (was 0.6): path fraction / sec (0.96 ≈ 1.04s horizon -> player)
     tunnelBrainMinGapSec: 0.8, // other lane may not get a brain within this many sec (never both lanes blocked)
     tunnelBrainTinyScale: 0.5,
     tunnelBrainMediumScale: 1.25,
@@ -853,7 +867,7 @@
 
     // --- sega31x win-path finale (after boss WIN) ---
     winNoCars: true, // supersedes postBossCarsFromHorizon on win path
-    winHeartDropPerSec: 2, // supersedes noHeartsOnWinCruise for this phase
+    winHeartDropPerSec: 1.28, // sega48 hearts x0.64 (was 2); supersedes noHeartsOnWinCruise for this phase
     winHeartDropUntilAscent: true,
     winAscentMaxDisplayMph: 666,
     winAscentMaxSpeed: 666,

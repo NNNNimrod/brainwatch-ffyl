@@ -104,7 +104,8 @@
   function laneOffset(state, lane) {
     var offsets = state.config.laneOffsets;
     var idx = Util.limit(lane, 0, offsets.length - 1);
-    return offsets[idx];
+    var sc = (state._approachLaneScale != null) ? state._approachLaneScale : 1; // sega48
+    return offsets[idx] * sc;
   }
 
   function resetRunState(state) {

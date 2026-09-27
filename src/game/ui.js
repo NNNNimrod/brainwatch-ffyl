@@ -1355,6 +1355,9 @@
     );
     el.classList.toggle("hidden", !show);
     el.setAttribute("aria-hidden", show ? "false" : "true");
+    // sega48: loserBloodFx false = no blood drips on the lose storyboard (flames stay)
+    el.classList.toggle("no-blood", !(state.config && state.config.loserBloodFx === true));
+    el.classList.toggle("no-hack", !(state.config && state.config.loserHackFx === true));
   }
 
   function renderHud(state) {
@@ -1393,12 +1396,14 @@
     if (refs.deathFlash) {
       // sega28: Mad Max uses same death-flash DOM/CSS styling
       if (state.madMaxFlashTimer > 0) {
-        refs.deathFlash.className = "death-flash on glow-green";
-        refs.deathFlash.textContent = (state.config && state.config.madMaxBannerText) || state.madMaxFlashText || "MAD MAX";
+        refs.deathFlash.className = "death-flash on glow-green powerup-title";
+        // sega48: powerupTitleText, one word per line (THRUSTERS / HACKED)
+        refs.deathFlash.textContent = String((state.config && (state.config.powerupTitleText || state.config.madMaxBannerText)) || state.madMaxFlashText || "THRUSTERS HACKED").split(/\s+/).join("\n");
         refs.deathFlash.setAttribute("aria-hidden", "false");
         if (ns.Sega31 && ns.Sega31.styleMadMaxFlash) ns.Sega31.styleMadMaxFlash(refs.deathFlash, state);
       } else if (state.deathFlashTimer > 0) {
-        refs.deathFlash.className = "death-flash on glow-red";
+        // sega48: loserBloodFx false = no red blood tint behind DEATH (text kept)
+        refs.deathFlash.className = "death-flash on glow-red" + ((state.config && state.config.loserBloodFx === true) ? "" : " no-blood");
         refs.deathFlash.textContent = "DEATH";
         refs.deathFlash.setAttribute("aria-hidden", "false");
       } else {

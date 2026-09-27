@@ -1078,11 +1078,11 @@
       state.madMaxUnlocked666 = false;
       state.madMaxClimbPause = 0;
       state.madMaxLedCap = (state.config && state.config.ledMaxSpeed) ? state.config.ledMaxSpeed : 210;
-      state.eventText = mm.banner || "MAD MAX MODE ENGAGED";
+      state.eventText = (state.config && state.config.powerupTitleText) || mm.banner || "THRUSTERS HACKED"; // sega48
       state.eventTimer = 2.6;
       // sega28: MAD MAX flash uses DEATH-style death-flash DOM
       state.madMaxFlashTimer = 1.6;
-      state.madMaxFlashText = "MAD MAX";
+      state.madMaxFlashText = (state.config && state.config.powerupTitleText) || "THRUSTERS HACKED"; // sega48
     }
     if (state.madMaxMode && t >= endT) {
       endMadMax(state, "window");

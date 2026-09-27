@@ -241,6 +241,8 @@
     var ease = Math.max(0.01, c.tunnelStraightEaseSec != null ? c.tunnelStraightEaseSec : 0.6);
     var tt = tunnelTimes(state);
     var start = tt.freeze - lead;
+    // sega48: song-time straight window (roadStraightStart -> roadStraightBy), independent of the mouth
+    if (c.roadStraightStart != null) { start = c.roadStraightStart; ease = Math.max(0.05, (c.roadStraightBy != null ? c.roadStraightBy : start + 2) - start); }
     if (t < start) return 0;
     if (t < tt.restore) return smooth01((t - start) / ease);
     return 1 - smooth01((t - tt.restore) / ease);
@@ -814,8 +816,35 @@
     } else {
       state._tunnelCityAlpha = 1 - fadeU;
     }
+    // sega48: city -> black starfield (fade starfieldFadeStart..+dur), starfield alone until the mouth;
+    // mouth then fades in over the stars; stars gone once inside (hideRoad) / after exit.
+    state._starfieldA = 0;
+    if (c.starfieldEnabled !== false && c.starfieldFadeStart != null && !state.inTunnel && !hideRoad &&
+        t >= c.starfieldFadeStart && t < whitePeak && phase !== 'done' && phase !== 'whiteDown' && phase !== 'roadWait') {
+      var sfU = Math.max(0, Math.min(1, (t - c.starfieldFadeStart) / Math.max(0.05, c.starfieldFadeDur != null ? c.starfieldFadeDur : 1.5)));
+      state._tunnelCityAlpha = Math.min(state._tunnelCityAlpha, 1 - sfU);
+      state._starfieldA = sfU;
+    }
+    // sega48: lanes pulled toward the road centre while the road is straight (camera stays ~on axis)
+    var lsK = (t < interiorStart - 0.3) ? (state._tunnelStraightK || 0) : 0;
+    var lsT = 1 - (1 - (c.approachLaneOffsetScale != null ? c.approachLaneOffsetScale : 1)) * lsK;
+    if (state._approachLaneScale != null && state._approachLaneScale < 0.999 && lsT >= 0.999) {
+      state._approachLaneScale = 1;
+      if (ns.State && ns.State.laneOffset) state.playerX = ns.State.laneOffset(state, state.lane || 0); // under black
+    }
+    state._approachLaneScale = lsT;
 
     // Player offset toward mouth / interior VP while shrinking (screen-space hint for renderer)
+    state._tunnelExitConverge = null;
+    if (c.tunnelExitConverge !== false && exitU > 0 && (phase === 'shrinkOut' || phase === 'whiteUp' || phase === 'blackOut')) {
+      // sega48: scale 1 -> 0 by the white-out; renderer places her at VP + (lane pos - VP) * scale
+      var eName = c.tunnelExitEase || 'easeInOutCubic';
+      var eu = eName === 'linear' ? exitU : (eName === 'easeInCubic' ? exitU * exitU * exitU : easeInOutCubic(exitU));
+      state._tunnelExitConverge = 1 - eu;
+      state._tunnelPlayerScale = 1 - eu;
+      state._tunnelPlayerOffY = 0;
+      state._tunnelPlayerOffX = 0;
+    } else
     if (shrinkU > 0 || (exitU > 0 && (phase === 'shrinkOut' || phase === 'whiteUp' || phase === 'blackOut'))) {
       var u = shrinkU > 0 ? shrinkU : exitU;
       state._tunnelPlayerOffY = -easeInOutCubic(u) * 0.42;
@@ -998,6 +1027,8 @@
     }
     var branches = [];
     var nb = 2 + Math.floor(Math.random() * 3);
+    var cfgL = (window.ApexRacer && ApexRacer.CONFIG) || {};
+    if (cfgL.lightningBranchDepth != null) nb = Math.min(nb, cfgL.lightningBranchDepth); // sega48
     for (i = 0; i < nb; i++) {
       var k = 1 + Math.floor(Math.random() * Math.max(1, n - 2));
       var p0 = pts[k];
@@ -1040,6 +1071,7 @@
     if (state._skyNextBolt <= 0 && every > 0) {
       // several simultaneous branching bolts
       var group = 1 + Math.floor(Math.random() * (1 + 2 * intensity));
+      if (c.lightningMaxBolts != null) maxB = Math.min(maxB, c.lightningMaxBolts); // sega48
       for (i = 0; i < group && state.skyBolts.length < maxB; i++) {
         state.skyBolts.push(makeBolt(0.04 + Math.random() * 0.92, 0.45 + Math.random() * 0.5, 0.2 + Math.random() * 0.25));
       }
@@ -1051,6 +1083,30 @@
       state._skyFlash = Math.max(state._skyFlash, flashA * intensity * (0.7 + Math.random() * 0.3));
       state._skyNextFlash = flashEvery * (0.5 + Math.random());
     }
+  }
+
+  function bakeSkyBolt(b, rect, mode) {
+    var W = Math.max(1, Math.round(rect.w)), H = Math.max(1, Math.round(rect.h));
+    var cv = b._cv || document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    var g = cv.getContext("2d");
+    var paths = [b.pts].concat(b.branches), j, q, pts;
+    var passes = [[mode === "boss" ? "#ff66ff" : "#88ccff", 14, 0.18], [mode === "boss" ? "#ff66ff" : "#88ccff", 9, 0.28],
+      [mode === "boss" ? "#ffb0ff" : "#ffe066", 5.5, 1], ["#ffffff", 2.2, 1]];
+    g.lineJoin = "round"; g.lineCap = "round";
+    passes.forEach(function(ps) {
+      for (j = 0; j < paths.length; j++) {
+        pts = paths[j];
+        g.beginPath();
+        g.moveTo(pts[0].u * W, pts[0].v * H);
+        for (q = 1; q < pts.length; q++) g.lineTo(pts[q].u * W, pts[q].v * H);
+        g.globalAlpha = ps[2] * (j === 0 ? 1 : 0.8);
+        g.strokeStyle = ps[0];
+        g.lineWidth = j === 0 ? ps[1] : ps[1] * 0.55;
+        g.stroke();
+      }
+    });
+    b._cv = cv; b._cvW = W; b._cvH = H;
   }
 
   // Renderer calls this inside the plate sky clip. rect = drawn plate rect {x,y,w,h}.
@@ -1085,6 +1141,21 @@
     }
     var bolts = state.skyBolts || [];
     var b, k, j, a, pts;
+    if (c.lightningPrebake !== false) {
+      // sega48: each bolt is baked ONCE into an offscreen canvas (fake glow = wide low-alpha strokes,
+      // no shadowBlur) and re-blitted additively; flicker = alpha only
+      ctx.globalCompositeOperation = "lighter";
+      for (k = 0; k < bolts.length; k++) {
+        b = bolts[k];
+        if (!b._cv || b._cvW !== Math.round(rect.w) || b._cvH !== Math.round(rect.h)) bakeSkyBolt(b, rect, mode);
+        a = Math.max(0, Math.min(1, b.life / Math.max(0.01, b.maxLife)));
+        b._fl = (b._fl == null || (b._flN = ((b._flN || 0) + 1)) % Math.max(1, c.lightningReuseFrames || 3) === 0) ? (0.65 + 0.35 * Math.random()) : b._fl;
+        ctx.globalAlpha = a * b._fl;
+        ctx.drawImage(b._cv, rect.x, rect.y);
+      }
+      ctx.restore();
+      return;
+    }
     for (k = 0; k < bolts.length; k++) {
       b = bolts[k];
       a = Math.max(0, Math.min(1, b.life / Math.max(0.01, b.maxLife)));
@@ -1540,6 +1611,23 @@
     ctx.restore();
   }
 
+  // sega48: black starfield = drawStarrySky's procedural Sega stars over black, full sky band
+  function drawStarfield(state, ctx, width, bandH, alpha) {
+    if (!(alpha > 0.003)) return;
+    var i, x, y, tw, t = songT(state);
+    var drift = state._bgParallaxX || 0;
+    ctx.save();
+    for (i = 0; i < 140; i++) {
+      x = (((i * 97) % width) + drift + width) % width;
+      y = ((i * 53) % Math.max(1, Math.floor(bandH)));
+      tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
+      ctx.globalAlpha = tw * alpha;
+      ctx.fillStyle = (i % 7 === 0) ? "#ff9ad5" : ((i % 5 === 0) ? "#7dffef" : "#ffffff");
+      ctx.fillRect(x, y, (i % 11 === 0) ? 2 : 1, (i % 11 === 0) ? 2 : 1);
+    }
+    ctx.restore();
+  }
+
   function drawFreshPostNukeOverlay(state, ctx, width, height, bandY, bandH) {
     var c = cfg(state);
     if (c.postNukeFreshSegaBg === false || c.postNukeSegaStyle === false) return;
@@ -1612,6 +1700,7 @@
 
   function tunnelPlayerDrawScale(state) {
     var s = state && state._tunnelPlayerScale != null ? state._tunnelPlayerScale : 1;
+    if (state && state._tunnelExitConverge != null) return Math.max(0, state._tunnelExitConverge); // sega48
     // Never fully invisible — clamp to min even if misconfigured
     var c = cfg(state);
     var minS = c.tunnelPlayerMinScale != null ? c.tunnelPlayerMinScale : 0.12;
@@ -1648,6 +1737,7 @@
     drawTunnelInteriorProcedural: drawTunnelInteriorProcedural,
     drawTunnelBlackFade: drawTunnelBlackFade,
     drawStarrySky: drawStarrySky,
+    drawStarfield: drawStarfield,
     drawFreshPostNukeOverlay: drawFreshPostNukeOverlay,
     shouldSkipRoad: shouldSkipRoad,
     roadBgAlpha: roadBgAlpha,
