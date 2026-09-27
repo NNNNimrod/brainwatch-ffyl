@@ -245,12 +245,16 @@
     decorateRoad(state);
     state.trackLength = state.segments.length * state.segmentLength;
 
-    startLineIndex = findSegment(state, state.playerZ).index + 2;
-    state.segments[wrappedIndex(state, startLineIndex)].color = COLORS.START;
-    state.segments[wrappedIndex(state, startLineIndex + 1)].color = COLORS.START;
+    // sega46: start/finish stripes only when config.roadStartLines === true (default false:
+    // those segments keep their normal alternating LIGHT/DARK road colours — no stripes anywhere).
+    if (state.config && state.config.roadStartLines === true) {
+      startLineIndex = findSegment(state, state.playerZ).index + 2;
+      state.segments[wrappedIndex(state, startLineIndex)].color = COLORS.START;
+      state.segments[wrappedIndex(state, startLineIndex + 1)].color = COLORS.START;
 
-    for (n = 0; n < state.rumbleLength; n++) {
-      state.segments[state.segments.length - 1 - n].color = COLORS.FINISH;
+      for (n = 0; n < state.rumbleLength; n++) {
+        state.segments[state.segments.length - 1 - n].color = COLORS.FINISH;
+      }
     }
   }
 

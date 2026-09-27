@@ -23,6 +23,7 @@
     roadWidth: 2000,
     segmentLength: 200,
     rumbleLength: 3,
+    roadStartLines: false, // sega46: false = no white START / black FINISH stripes anywhere on the road (editor 'queued for sega46')
     lanes: 2,
     fieldOfView: 100,
     cameraHeight: 1000,
