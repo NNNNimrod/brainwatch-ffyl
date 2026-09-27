@@ -509,6 +509,7 @@
     var vpX = w * (path && path.vpX != null ? path.vpX : 0.5);
     var vpY = h * (path && path.vpY != null ? path.vpY : 0.48);
     var brain = ns.Brains.spawnBrain(state, {
+      tunnelLane: true, // sega49: exempt from approachNoBrains
       tiny: tiny,
       medium: !tiny,
       kind: tiny ? "tiny" : "medium",

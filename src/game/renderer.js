@@ -641,6 +641,28 @@
   }
 
   // sega31w/x: one Austin strip cover/contain/stretch; sega31x horizontal scroll like treeOffset
+  function prescaledPlate(img, sx, sy, sw, sh, dw, dh) {
+    try {
+      if (typeof document === "undefined" || !(img && (img.complete !== false) && img.width > 0)) return null;
+      var tw = Math.max(1, Math.ceil(dw * 1.25)), th = Math.max(1, Math.ceil(dh * 1.25)); // headroom for zoom <= 1.25
+      if (tw >= sw && th >= sh) return null; // no gain when upscaling
+      var key = sx + "," + sy + "," + sw + "," + sh + "@" + tw + "x" + th;
+      var c = img._bgPre;
+      if (c && c._key === key) return c;
+      img._bgPreBuilds = (img._bgPreBuilds || 0) + 1;
+      if (img._bgPreBuilds > 6) return null; // size keeps changing: don't thrash, draw direct
+      c = document.createElement("canvas");
+      c.width = tw; c.height = th;
+      var g = c.getContext("2d");
+      g.imageSmoothingEnabled = true;
+      try { g.imageSmoothingQuality = "high"; } catch (eQ) {}
+      g.drawImage(img, sx, sy, sw, sh, 0, 0, tw, th);
+      c._key = key;
+      img._bgPre = c;
+      return c;
+    } catch (e) { return null; }
+  }
+
   function drawBgSingleLayer(ctx, background, width, height, cfg, scrollOffset) {
     if (!background || !(background.width > 0)) return;
     var yFrac = cfg.austinBgSingleYFrac != null ? cfg.austinBgSingleYFrac : 0;
@@ -732,7 +754,11 @@
         }
       } else {
         // Full plate or scroll-off: single draw, no wrap seam
-        ctx.drawImage(background, srcX, srcY, srcW, srcH, dx, dy, dw, dh);
+        // sega49: bgPrescalePlates — resample the big plate to band size ONCE (cached canvas per
+        // plate+size) so the per-frame draw under the zoom/parallax transform reads a small source.
+        var pre = (cfg.bgPrescalePlates !== false) ? prescaledPlate(background, srcX, srcY, srcW, srcH, dw, dh) : null;
+        if (pre) ctx.drawImage(pre, 0, 0, pre.width, pre.height, dx, dy, dw, dh);
+        else ctx.drawImage(background, srcX, srcY, srcW, srcH, dx, dy, dw, dh);
       }
     } catch (eBg) {}
     ctx.restore();

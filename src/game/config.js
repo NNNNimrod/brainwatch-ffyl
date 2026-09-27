@@ -30,10 +30,12 @@
     approachCenterEase: 1.0,       // camera-centring weight eases in/out over this many sec
     tunnelApproachMaxOffsetFrac: 0.12, // her on-screen offset from centre capped (via camera weight) on approach
     starfieldEnabled: true, starfieldFadeStart: 78.0, starfieldFadeDur: 1.5, starfieldHoldUntil: 84.5, // city -> black starfield before the mouth
+    approachNoBrains: true, // sega49: no brains of any kind from starfieldFadeStart until tunnel interior brains start; on-screen ones shrink out at 78 s
     tunnelExitConverge: true, tunnelExitTargetX: 0.5, tunnelExitTargetY: 0.48, tunnelExitEase: "easeInOutCubic", // exit shrinks into the VP
     lightningPrebake: true, lightningMaxBolts: 4, lightningBranchDepth: 2, lightningReuseFrames: 3, lightningNoShadowBlur: true,
     bgParallaxStrength: 6, bgParallaxMax: 4, bgParallaxEase: 0.4, // px per unit curve/steer, px cap, smoothing sec
     bgZoomStart: 1.0, bgZoomEnd: 1.2, bgZoomByDistance: true, bgZoomFullDistance: 1200000, // plates zoom toward the city with road distance
+    bgPrescalePlates: false, // sega49 (off: no measurable p95 gain at 4x): cache each bg plate pre-resampled to band size (cheaper per-frame zoom/parallax draw)
     postNukeBgShakeSpikeChance: 0.1, postNukeBgShakeSpikePx: [6, 8], postNukeBgShakeHoldFramesMax: 4,
     powerupTitleText: "THRUSTERS HACKED", // big power-up title (stacked) + toast
     loserBloodFx: false, loserHackFx: false, // lose/death screens: no blood drips / no green hack tint

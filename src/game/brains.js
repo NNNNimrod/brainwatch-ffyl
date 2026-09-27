@@ -232,6 +232,32 @@
     return c.mediumHp != null ? c.mediumHp : (c.normalHp != null ? c.normalHp : 100);
   }
 
+  // sega49: approachNoBrains — no brains of any kind from starfieldFadeStart (78 s) until the
+  // tunnel interior brains start (interiorStart = tunnelEnterSec + tunnelBlackHoldSec).
+  function approachNoBrainsActive(state) {
+    var c = state && state.config;
+    if (!c || c.approachNoBrains === false || c.starfieldFadeStart == null) return false;
+    if (state.phase !== "running" || state.madMaxMode) return false;
+    var t = state.songClock || 0;
+    var interior = state._tunnelInteriorStart;
+    if (!(interior > 0)) interior = (c.tunnelEnterSec != null ? c.tunnelEnterSec : 90.5) + Math.max(0, c.tunnelBlackHoldSec || 0);
+    return t >= c.starfieldFadeStart && t < interior;
+  }
+
+  function clearApproachBrains(state) {
+    var list = state.brains || [], n, b, dur = (state.config.brainExitShrinkSec != null) ? state.config.brainExitShrinkSec : 0.85;
+    for (n = 0; n < list.length; n++) {
+      b = list[n];
+      if (!b || !b.alive || b.exitShrink || b.bossDying || b.tunnelLane) continue;
+      b.exitShrink = true; b.exitShrinkT = 0; b.exitShrinkDur = dur; b.vx = (b.vx || 0) * 0.3;
+      b.telegraph = 0; b.kamikaze = false; b.zapTimer = 99999;
+    }
+    if (!state._approachBrainsCleared) {
+      state._approachBrainsCleared = true;
+      state.shots = []; state.lightningBolts = []; state.shockFlash = 0; state.brainSpawnTimer = 0;
+    }
+  }
+
   function spawnBrain(state, opts) {
     var cfg = state.config.brains;
     var w = state.width;
@@ -332,6 +358,11 @@
     if (opts.fromTop || opts.isBoss) {
       // Drift down into upper playfield while growing
       brain.targetBaseY = bannerClear + Math.round(h * (0.10 + Math.random() * 0.14));
+    }
+    if (!opts.isBoss && !opts.tunnelLane && approachNoBrainsActive(state)) {
+      // sega49: swallowed during the starfield approach (never added to state.brains)
+      brain.alive = false; brain.hp = 0;
+      return brain;
     }
     state.brains.push(brain);
     return brain;
@@ -1513,6 +1544,8 @@
     var approachScale;
 
     ensureBrains(state, dt);
+    if (approachNoBrainsActive(state)) clearApproachBrains(state); // sega49
+    else if (state._approachBrainsCleared && (state.songClock || 0) < ((state.config.starfieldFadeStart || 78) - 1)) state._approachBrainsCleared = false;
     updateBossOffspring(state, dt); // sega45
     updateMediumGestation(state, dt);
     updateBossChoreography(state, dt);
@@ -1951,6 +1984,7 @@
   }
 
   ns.Brains = {
+    approachNoBrainsActive: approachNoBrainsActive,
     fireUnavoidableZap: fireUnavoidableZap,
     reset: resetBrains,
     update: updateBrains,
