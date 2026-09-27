@@ -100,7 +100,7 @@ if (!window.requestAnimationFrame) { // http://paulirish.com/2011/requestanimati
 //  - never blocks the game; drawImage never throws on unloaded/broken art
 //=========================================================================
 
-var ASSET_V = "sega46";
+var ASSET_V = "sega47";
 
 (function sega44DrawImageGuard() {
   try {
@@ -410,7 +410,8 @@ var Game = {  // a modified version of the game loop from my previous boulderdas
     Game.loadImages(options.images, function(images, timedOut) {
 
       try { MusicLoader.attach(); } catch (eMu) {}
-      options.ready(images, timedOut); // tell caller to initialize itself (timedOut → some art still loading)
+      // sega47: a throw in ready() must never kill the frame loop / leave Start locked
+      try { options.ready(images, timedOut); } catch (eReady) { try { console.error('[sega47] ready() threw', eReady); } catch (e2) {} }
 
       Game.setKeyListener(options.keys);
 

@@ -210,9 +210,12 @@
         state._austinNewPlatesReady = state._austinNewPlatesReady || {};
         state.backgroundPlates = {};
         state.endingImages = {};
-        bindCriticalImages(images);
+        try { bindCriticalImages(images); } catch (eBind) { try { console.error("[sega47] bindCriticalImages threw", eBind); } catch (eB2) {} }
         var cfg = state.config || (ns.CONFIG) || {};
 
+        // sega47: everything between here and assetsReady is best-effort — a throw (any browser quirk)
+        // must never leave Start stuck on LOADING
+        try {
         // ---- LAZY queue, ordered by song time (prio ≈ seconds into the song) ----
         // full sprite atlas first (roadside props from the atlas; core already has player/brains/cars)
         if (criticalNames[IDX_SPRITES] !== "sprites") {
@@ -292,6 +295,7 @@
 
         if (!timedOut) LazyAssets.start(); // else starts when the critical set completes
         else setTimeout(function() { LazyAssets.start(); }, 20000); // never wait forever on a stuck file
+        } catch (eLazy) { try { console.error("[sega47] lazy queue setup threw", eLazy); } catch (eL2) {} }
 
         // sega42: mark assets ready + flush pending Start (blank-screen race fix)
         state.assetsReady = true;

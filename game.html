@@ -12,8 +12,10 @@
   <title>BRAIN WATCH — Fight For Your Life (Sega Pixel) · city</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles/game.css?v=sega46">
+  <!-- sega47: Google Font is NON-render-blocking (a slow/hung fonts.googleapis.com request used to block every
+       script on iPhone → stuck on LOADING forever). Falls back to the system font until it arrives. -->
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="styles/game.css?v=sega47">
 </head>
 <body>
   <main class="app-shell" id="app">
@@ -72,7 +74,7 @@
 
       <div id="phaseOverlay" class="overlay">
         <div class="overlay-card menu-title" id="overlayCard">
-          <img id="titleLogo" class="title-logo" src="images/title-brain-watch.jpg?v=sega46" alt="BRAIN WATCH" width="640" height="400" />
+          <img id="titleLogo" class="title-logo" src="images/title-brain-watch.jpg?v=sega47" alt="BRAIN WATCH" width="640" height="400" />
           <h2 id="overlayTitle">FIGHT FOR YOUR LIFE</h2>
           <button id="highScoresButton" class="secondary-btn" type="button">HIGH SCORES</button>
           <ol id="highScoreList" class="high-score-list hidden" aria-label="Top 3 high scores"></ol>
@@ -141,11 +143,11 @@
 
     <nav class="social-links" id="socialLinks" aria-label="BRAIN WATCH links">
       <a class="social-btn social-ig" href="https://www.instagram.com/brain.watch.band/" target="_blank" rel="noopener noreferrer">
-        <img src="images/icon-instagram.svg?v=sega46" alt="" width="28" height="28" />
+        <img src="images/icon-instagram.svg?v=sega47" alt="" width="28" height="28" />
         <span class="label">INSTAGRAM</span>
       </a>
       <a class="social-btn social-spotify" href="https://open.spotify.com/artist/7Bf3DViunl3JIsoKhhNIOE" target="_blank" rel="noopener noreferrer">
-        <img src="images/icon-spotify.svg?v=sega46" alt="" width="28" height="28" />
+        <img src="images/icon-spotify.svg?v=sega47" alt="" width="28" height="28" />
         <span class="label">SPOTIFY</span>
       </a>
     </nav>
@@ -178,22 +180,52 @@
   <!-- sega44: src attached by MusicLoader once the small critical art set is in (or ~7.5s safety); streams, relative URL -->
   <audio id="music" data-src="audio.mp3" preload="auto" playsinline webkit-playsinline muted></audio>
 
-  <script src="common.js?v=sega46"></script>
-  <script src="src/game/lyrics.js?v=sega46"></script>
-  <script src="src/game/scenery.js?v=sega46"></script>
-  <script src="src/game/sections.js?v=sega46"></script>
-  <script src="src/game/config.js?v=sega46"></script>
-  <script src="src/game/state.js?v=sega46"></script>
-  <script src="src/game/track.js?v=sega46"></script>
-  <script src="src/game/traffic.js?v=sega46"></script>
-  <script src="src/game/fx.js?v=sega46"></script>
-  <script src="src/game/brains.js?v=sega46"></script>
-  <script src="src/game/renderer.js?v=sega46"></script>
-  <script src="src/game/gameplay.js?v=sega46"></script>
-  <script src="src/game/sfx.js?v=sega46"></script>
-  <script src="src/game/ui.js?v=sega46"></script>
-  <script src="src/game/sega31.js?v=sega46"></script>
-  <script src="src/game/sega31x.js?v=sega46"></script>
-  <script src="src/game/app.js?v=sega46"></script>
+  <script>
+  // sega47: hard LOADING watchdog (plain ES5, runs before the game). If Start is still disabled after
+  // ~9 s — any late error, hung image or media promise — force-unlock it. If the game never booted,
+  // offer a tap-to-reload instead of an eternal LOADING.
+  (function () {
+    var t0 = Date.now();
+    var iv = setInterval(function () {
+      var b = document.getElementById("insertTokenButton");
+      if (!b) return;
+      if (!b.disabled) { clearInterval(iv); return; }
+      if (Date.now() - t0 < 9000) return;
+      clearInterval(iv);
+      var ns = window.ApexRacer || {}, st = window.__ffylState;
+      if (st && !st.assetsReady) {
+        try { if (window.MusicLoader) MusicLoader.attach(); } catch (e0) {}
+        st.assetsReady = true;
+        st._watchdogUnlock = true;
+        try { if (ns.UI && ns.UI.onAssetsReady) ns.UI.onAssetsReady(st); } catch (e1) {}
+      }
+      if (b.disabled && !st) {
+        b.textContent = "TAP TO RELOAD";
+        b.disabled = false;
+        b.onclick = function () { location.reload(); };
+      } else if (b.disabled) {
+        b.disabled = false;
+        b.textContent = "INSERT TOKEN";
+      }
+    }, 500);
+  })();
+  </script>
+  <script src="common.js?v=sega47"></script>
+  <script src="src/game/lyrics.js?v=sega47"></script>
+  <script src="src/game/scenery.js?v=sega47"></script>
+  <script src="src/game/sections.js?v=sega47"></script>
+  <script src="src/game/config.js?v=sega47"></script>
+  <script src="src/game/state.js?v=sega47"></script>
+  <script src="src/game/track.js?v=sega47"></script>
+  <script src="src/game/traffic.js?v=sega47"></script>
+  <script src="src/game/fx.js?v=sega47"></script>
+  <script src="src/game/brains.js?v=sega47"></script>
+  <script src="src/game/renderer.js?v=sega47"></script>
+  <script src="src/game/gameplay.js?v=sega47"></script>
+  <script src="src/game/sfx.js?v=sega47"></script>
+  <script src="src/game/ui.js?v=sega47"></script>
+  <script src="src/game/sega31.js?v=sega47"></script>
+  <script src="src/game/sega31x.js?v=sega47"></script>
+  <script src="src/game/app.js?v=sega47"></script>
 </body>
 </html>
