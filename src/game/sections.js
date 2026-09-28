@@ -852,7 +852,7 @@
         var labels = cfg.sectionTitleLabels || {};
         var label = labels[id];
         if (!label) {
-          if (id === "verse1") label = cfg.sectionTitleLabelVerse1 || "FIRST VERSE";
+          if (id === "verse1") label = cfg.sectionTitleLabelVerse1 || "VERSE 1";
           else if (id === "chorus1") label = cfg.sectionTitleLabelChorus1 || "CHORUS";
           else if (id === "verse2") label = cfg.sectionTitleLabelVerse2 || "SECOND VERSE";
           else if (id === "chorus2") label = cfg.sectionTitleLabelChorus2 || "CHORUS";
@@ -860,6 +860,8 @@
         if (!label) return;
         // sega51: showChorusTitles false = no title containing the word CHORUS (CHORUS / CHORUS 2 / FINAL CHORUS ...)
         if (cfg.showChorusTitles !== true && /chorus/i.test(String(label))) return;
+        // sega51: sectionTitlesOnlyVerses — only VERSE 1 here; VERSE 2 is shown at the tunnel mouth (sega31x)
+        if (cfg.sectionTitlesOnlyVerses !== false && id !== "verse1") return;
         var dur = cfg.sectionTitleDurationSec != null ? cfg.sectionTitleDurationSec : 3.0;
         var fade = cfg.sectionTitleFadeSec != null ? cfg.sectionTitleFadeSec : 0.5;
         state.sectionTitleText = String(label);
@@ -949,8 +951,14 @@
     } else if (ns.Brains && ns.Brains.spawnFinaleFightPack) {
       ns.Brains.spawnFinaleFightPack(state);
     }
-    state.eventText = "BOSS INCOMING";
-    state.eventTimer = 2.4;
+    // sega51: showBossIncoming false (Facts: "No boss incoming") — no BOSS INCOMING toast
+    if (state.config && state.config.showBossIncoming === true) {
+      state.eventText = "BOSS INCOMING";
+      state.eventTimer = 2.4;
+    } else {
+      state.eventText = "";
+      state.eventTimer = 0;
+    }
     state.saxBgActive = false;
   }
 

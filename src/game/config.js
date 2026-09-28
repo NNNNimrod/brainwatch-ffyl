@@ -719,7 +719,9 @@
 
     // --- sega31w section title banners ---
     sectionTitleEnabled: true,
-    showChorusTitles: false, // sega51: hide any section title containing "CHORUS"
+    sectionTitlesOnlyVerses: true, // sega51: only VERSE 1 (verse1 start) + VERSE 2 (tunnel mouth); no other section titles
+    showChorusTitles: false,
+    showBossIncoming: false, // sega51: no BOSS INCOMING toast at boss start // sega51: hide any section title containing "CHORUS"
     sectionTitleYFrac: 0.22, // ~22% down canvas, above player
     sectionTitleDurationSec: 3.0,
     sectionTitleFadeSec: 0.5,
@@ -728,12 +730,12 @@
     sectionTitleFill: "#ff66cc",
     sectionTitleStroke: "#00f0ff",
     sectionTitleGlow: "#ff2ec4",
-    sectionTitleLabelVerse1: "FIRST VERSE",
+    sectionTitleLabelVerse1: "VERSE 1", // sega51 (was FIRST VERSE)
     sectionTitleLabelChorus1: "CHORUS",
     sectionTitleLabelVerse2: "SECOND VERSE",
     sectionTitleLabelChorus2: "CHORUS",
     sectionTitleLabels: {
-      verse1: "FIRST VERSE",
+      verse1: "VERSE 1",
       chorus1: "CHORUS",
       verse2: "SECOND VERSE",
       chorus2: "CHORUS"
