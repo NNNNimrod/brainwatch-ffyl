@@ -505,8 +505,10 @@
       var dur = Math.max(0.5, rwCfg(state, "bossApproachDur", 7));
       var u = Math.min(1, R.phaseT / dur);
       var s0 = rwCfg(state, "bossApproachStartScale", 0.05);
-      sz = rwSetDraw(boss, w / 2, horizonY + (viewY - horizonY) * (u * (2 - u)), s0 + (1 - s0) * u * u, Math.min(1, u / 0.08), dt);
-      boss.noTap = true;
+      var scA = s0 + (1 - s0) * u * u;
+      sz = rwSetDraw(boss, w / 2, horizonY + (viewY - horizonY) * (u * (2 - u)), scA, Math.min(1, u / 0.08), dt);
+      // sega51: bossShootableBeforeFinal — boss takes damage while visible (A once big enough, C), not while off-screen
+      boss.noTap = !(rwCfg(state, "bossShootableBeforeFinal", true) !== false && scA >= 0.3);
       R.nextShot -= dt;
       if (R.nextShot <= 0 && u < 0.97) {
         R.nextShot = rwCfg(state, "bossApproachProjectileEvery", 1.1);
@@ -549,7 +551,7 @@
       var fullD = (boss.radius || 60) * 2.4;
       var dropY = h * 0.16;
       sz = rwSetDraw(boss, w / 2, -fullD * 0.6 + (dropY + fullD * 0.6) * (ud * (2 - ud)), 1, 1, dt);
-      boss.noTap = true;
+      boss.noTap = !(rwCfg(state, "bossShootableBeforeFinal", true) !== false && boss.y > 0);
       R.dropAcc += dt;
       if (R.dropAcc >= rwCfg(state, "bossDropEvery", 0.7) && ud < 0.98 && R.phaseT > 0.4) {
         R.dropAcc = 0;
@@ -568,6 +570,7 @@
       var fx = rwCfg(state, "bossFinalFollowLane", true) !== false ? laneScreenX(state, rwHerLane(state)) : w / 2;
       var ease = uf * uf * (3 - 2 * uf);
       rwSetDraw(boss, boss.x + (fx - boss.x) * Math.min(1, dt * 3), R.y0 + (fy - R.y0) * ease, 1, 1, dt);
+      boss.noTap = !(rwCfg(state, "bossShootableBeforeFinal", true) !== false && boss.y > 0);
       if (uf >= 1) {
         boss.rwCtl = false; boss.noFight = false; boss.noTap = false;
         boss.approach = 1; boss.postGrowDelay = 0; boss.targetBaseY = null; boss.vx = 0; boss.bobAmp = Math.min(boss.bobAmp || 6, 6);

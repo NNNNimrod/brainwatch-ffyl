@@ -38,7 +38,7 @@
     bossMediumCount: 3, bossMediumSpeedMult: 1.5, bossMediumHp: 100, bossMediumGlowWarnSec: 1.42, bossExitUpSec: 1.2,
     bossMediumPhaseMaxSec: 9.0, bossDropDescendSec: 4.0, bossDropEvery: 0.7, bossDropFallSec: 0.9, bossDropScale: 0.42,
     bossDropDamage: 30, bossDropShootable: true, bossDropTargetMode: "herLane", bossFinalDescendSec: 1.5, bossFinalYFrac: 0.4,
-    bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 5.0,
+    bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossShootableBeforeFinal: true, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 5.0,
     tunnelMouthFadeEase: "smooth", secondVerseTitleOn: true, secondVerseTitleText: "SECOND VERSE", secondVerseTitleSec: 2.5,
     secondVerseTitleFadeSec: 0.5, tunnelInteriorSectionTitle: false, bgScrollEnabled: true, bgScrollCurvePx: 20, bgScrollSteerPx: 12,
     bgScrollMaxPx: 24, bgScrollEase: 0.6, bgScrollCurveNorm: 4, bossBgLightning: true, bossBgLightningIntensity: 1.5,
