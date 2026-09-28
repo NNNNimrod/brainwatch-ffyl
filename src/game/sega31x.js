@@ -791,6 +791,25 @@
     }
 
     state._tunnelPhase = phase;
+    // sega51: "SECOND VERSE" section title during the last secondVerseTitleSec of her entrance into the mouth
+    // (shrinkIn, ending at blackInStart = tunnelEnterSec - tunnelBlackDurSec = 90.05 s). Cleared the instant she is inside.
+    if (c.secondVerseTitleOn !== false) {
+      var svSec = Math.max(0.2, c.secondVerseTitleSec != null ? c.secondVerseTitleSec : 2.5);
+      var svFade = Math.max(0, Math.min(svSec * 0.5, c.secondVerseTitleFadeSec != null ? c.secondVerseTitleFadeSec : 0.5));
+      var svStart = blackInStart - svSec;
+      if (phase === 'shrinkIn' && t >= svStart && t < blackInStart) {
+        if (!state._svTitleActive) {
+          state._svTitleActive = true;
+          state.sectionTitleText = String(c.secondVerseTitleText || "SECOND VERSE");
+          state.sectionTitleAge = Math.max(0, t - svStart);
+          state.sectionTitleDuration = svSec - svFade; // fades out over the last svFade s, gone at blackInStart
+          state.sectionTitleFade = svFade;
+        }
+      } else if (state._svTitleActive) {
+        state._svTitleActive = false;
+        state.sectionTitleText = ""; state.sectionTitleAge = 0;
+      }
+    }
     state.tunnelApproaching = approaching;
     state.tunnelExiting = exiting;
     state.inTunnel = inTunnel;
@@ -808,7 +827,10 @@
 
     // sega45: mouth fades in freeze → tunnelEntranceVisibleSec while the city plate fades to black;
     // no city behind the mouth, none through the tunnel, green plate appears under the white peak.
-    var fadeU = Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, visibleSec - freezeStart)));
+    // sega51: tunnelMouthFadeInSec (own duration, default 5 s) + smoothstep ease; alpha only (freeze/shrink timing untouched)
+    var mouthFadeSec = c.tunnelMouthFadeInSec != null ? c.tunnelMouthFadeInSec : (visibleSec - freezeStart);
+    var fadeU = Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, mouthFadeSec)));
+    if (c.tunnelMouthFadeEase !== "linear") fadeU = fadeU * fadeU * (3 - 2 * fadeU);
     state._tunnelMouthAlpha = approaching ? (c.tunnelMouthFadeIn === false ? 1 : fadeU) : 0;
     if (c.tunnelCityFadeOut === false) {
       state._tunnelCityAlpha = 1;
@@ -1010,7 +1032,7 @@
       var dur = c.partyCrashWeatherDurationSec != null ? c.partyCrashWeatherDurationSec : 12;
       if (t >= at && t < at + dur) return "party";
     }
-    if (c.bossLightningEnabled !== false && (state.finaleFight || state.finaleMode === "fight") &&
+    if (c.bossLightningEnabled !== false && c.bossBgLightning !== false && (state.finaleFight || state.finaleMode === "fight") &&
         !state.bossDefeatBeat && !state.finaleWon && !state.finaleLost && state.finaleMode !== "karaoke") {
       return "boss";
     }
@@ -1060,9 +1082,11 @@
     state._skyFlash = Math.max(0, (state._skyFlash || 0) - dt * 3.2);
     if (!mode) { state._skyNextBolt = 0; state._skyNextFlash = 0; return; }
     var party = mode === "party";
-    var intensity = party ? (c.partyCrashWeatherIntensity != null ? c.partyCrashWeatherIntensity : 1.0) : 1.0;
+    // sega51: boss storm cells bossBgLightningIntensity / bossBgLightningEvery / bossBgLightningMaxBolts
+    var intensity = party ? (c.partyCrashWeatherIntensity != null ? c.partyCrashWeatherIntensity : 1.0)
+      : (c.bossBgLightningIntensity != null ? c.bossBgLightningIntensity : 1.0);
     var every = party ? (c.partyCrashBoltEverySec != null ? c.partyCrashBoltEverySec : 0.3)
-      : (c.bossLightningEverySec != null ? c.bossLightningEverySec : 0.35);
+      : (c.bossBgLightningEvery != null ? c.bossBgLightningEvery : (c.bossLightningEverySec != null ? c.bossLightningEverySec : 0.35));
     var maxB = party ? (c.partyCrashMaxBolts != null ? c.partyCrashMaxBolts : 6)
       : (c.bossLightningMaxBolts != null ? c.bossLightningMaxBolts : 6);
     var flashA = party ? (c.partyCrashFlashAlpha != null ? c.partyCrashFlashAlpha : 0.55)
@@ -1073,10 +1097,11 @@
       // several simultaneous branching bolts
       var group = 1 + Math.floor(Math.random() * (1 + 2 * intensity));
       if (c.lightningMaxBolts != null) maxB = Math.min(maxB, c.lightningMaxBolts); // sega48
+      if (!party && c.bossBgLightningMaxBolts != null) maxB = c.bossBgLightningMaxBolts; // sega51: boss storm own cap
       for (i = 0; i < group && state.skyBolts.length < maxB; i++) {
         state.skyBolts.push(makeBolt(0.04 + Math.random() * 0.92, 0.45 + Math.random() * 0.5, 0.2 + Math.random() * 0.25));
       }
-      state._skyFlash = Math.max(state._skyFlash, flashA * intensity * (0.55 + Math.random() * 0.45));
+      state._skyFlash = Math.min(0.85, Math.max(state._skyFlash, flashA * intensity * (0.55 + Math.random() * 0.45)));
       state._skyNextBolt = every * (0.5 + Math.random());
     }
     state._skyNextFlash = (state._skyNextFlash || 0) - dt;

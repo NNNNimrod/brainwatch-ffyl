@@ -397,6 +397,33 @@
     return nb.start != null ? nb.start : 156.5;
   }
 
+  // sega51: erratic post-nuke plate cycle — random hold / random fade, some fades replaced by hard snaps,
+  // occasional 1-3 frame flickers to the other plate during a hold. Returns B-plate alpha 0..1.
+  function erraticNukeCycleK(state, c, t) {
+    function rnd(a, b) { return a + Math.random() * Math.max(0, b - a); }
+    var hMin = c.nukeCycleHoldMin != null ? c.nukeCycleHoldMin : 0.8, hMax = c.nukeCycleHoldMax != null ? c.nukeCycleHoldMax : 2.5;
+    var fMin = c.nukeCycleFadeMin != null ? c.nukeCycleFadeMin : 0.3, fMax = c.nukeCycleFadeMax != null ? c.nukeCycleFadeMax : 1.2;
+    var snapP = c.nukeCycleSnapChance != null ? c.nukeCycleSnapChance : 0.3;
+    var flickP = c.nukeCycleFlickerChance != null ? c.nukeCycleFlickerChance : 0.35;
+    var s = state._nkCyc;
+    if (!s || t < s.t0 - 0.05 || t - s.t0 > 30) s = state._nkCyc = { side: 0, mode: "hold", t0: t, dur: rnd(hMin, hMax), flickAt: -1, flickEnd: -1 };
+    var guard = 0;
+    while (t - s.t0 >= s.dur && guard++ < 50) {
+      var tEnd = s.t0 + s.dur;
+      if (s.mode === "hold") {
+        if (Math.random() < snapP) { s.side = 1 - s.side; s.mode = "hold"; s.dur = rnd(hMin, hMax); } // hard snap
+        else { s.mode = "fade"; s.dur = rnd(fMin, fMax); }
+      } else { s.side = 1 - s.side; s.mode = "hold"; s.dur = rnd(hMin, hMax); }
+      s.t0 = tEnd;
+      s.flickAt = -1;
+      if (s.mode === "hold" && Math.random() < flickP) { s.flickAt = s.t0 + rnd(0.15, Math.max(0.2, s.dur - 0.2)); s.flickEnd = s.flickAt + rnd(0.04, 0.12); }
+    }
+    var k;
+    if (s.mode === "fade") { var u = Math.max(0, Math.min(1, (t - s.t0) / Math.max(0.05, s.dur))); u = smoothstep01(u); k = s.side ? 1 - u : u; }
+    else { k = s.side; if (s.flickAt > 0 && t >= s.flickAt && t < s.flickEnd) k = 1 - k; }
+    return k;
+  }
+
   // Returns [{img, a, key}] bottom → top.
   function computeBgMix(state) {
     var c = state.config || {};
@@ -411,6 +438,10 @@
       }
       if (!A) return [{ img: B, a: 1, key: keys[1] }];
       if (!B || B === A) return [{ img: A, a: 1, key: keys[0] }];
+      if (c.nukeCycleErratic !== false) {
+        var ke = erraticNukeCycleK(state, c, t);
+        return [{ img: A, a: 1, key: keys[0] }, { img: B, a: ke, key: keys[1] }];
+      }
       var hold = Math.max(0, c.postNukeFireHoldSec != null ? c.postNukeFireHoldSec : 4);
       var fade = Math.max(0.05, c.postNukeFireFadeSec != null ? c.postNukeFireFadeSec : 2);
       var cyc = 2 * (hold + fade);
@@ -445,6 +476,44 @@
     return [{ img: m.img, a: 1, key: m.key }];
   }
 
+  // sega51: bigger, jitterier post-nuke shake: constant per-frame jitter, frequent bursts, spikes, violent bursts.
+  function erraticNukeShake(state, c, t) {
+    function rnd(a, b) { return a + Math.random() * Math.max(0, b - a); }
+    function pair(v, d) { return Array.isArray(v) ? [v[0], v[1] != null ? v[1] : v[0]] : (v != null ? [v, v] : d); }
+    var jit = c.nukeShakeJitterPx != null ? c.nukeShakeJitterPx : 2;
+    var amp = pair(c.nukeShakeAmpPx, [4, 10]);
+    var spk = pair(c.nukeShakeSpikePx, [12, 18]);
+    var spkP = c.nukeShakeSpikeChance != null ? c.nukeShakeSpikeChance : 0.25;
+    var violP = c.nukeShakeViolentChance != null ? c.nukeShakeViolentChance : 0.2;
+    var gap = pair(c.nukeShakeBurstGapSec, [0.4, 1.6]);
+    var bur = pair(c.nukeShakeBurstSec, [0.25, 0.6]);
+    var pad = Math.max(amp[1] * 1.6, spk[1]) + 1;
+    var sh = state._bgShake2 || (state._bgShake2 = { next: t + 0.2, until: -1, violent: false });
+    if (t < sh.until - 30 || t > sh.next + 30) { sh.next = t + 0.2; sh.until = -1; }
+    if (t >= sh.next) {
+      sh.violent = Math.random() < violP;
+      sh.until = t + rnd(bur[0], bur[1]) * (sh.violent ? 1.6 : 1);
+      sh.next = sh.until + rnd(gap[0], gap[1]);
+    }
+    var x = 0, y = 0;
+    var r1 = function() { return (Math.random() * 2 - 1) * jit; };
+    x = r1(); y = r1(); // per-frame jitter, always on
+    if (t < sh.until) {
+      if (!(sh.holdLeft > 0) || sh.bx == null) {
+        sh.holdLeft = 1 + Math.floor(Math.random() * (sh.violent ? 2 : 3));
+        var roll = function() {
+          var sp = Math.random() < spkP, a = sp ? spk[0] : amp[0], b = sp ? spk[1] : amp[1];
+          var v = rnd(a, b) * (sh.violent && !sp ? 1.6 : 1);
+          return (Math.random() < 0.5 ? -1 : 1) * Math.min(pad - 1, v);
+        };
+        sh.bx = roll(); sh.by = roll() * 0.8;
+      }
+      sh.holdLeft--;
+      x += sh.bx; y += sh.by;
+    } else { sh.bx = null; }
+    return { x: Math.round(x), y: Math.round(y), pad: pad };
+  }
+
   // Background-only shake after the nuke: short random bursts of 1-3 px jitter.
   function postNukeBgShake(state) {
     var c = state.config || {};
@@ -459,6 +528,7 @@
       sh.until = t + burst * (0.6 + Math.random() * 0.8);
       sh.next = sh.until + gMin + Math.random() * Math.max(0, gMax - gMin);
     }
+    if (c.nukeShakeErratic !== false) return erraticNukeShake(state, c, t);
     var lo = c.postNukeBgShakeMinPx != null ? c.postNukeBgShakeMinPx : 2;
     var hi = c.postNukeBgShakeMaxPx != null ? c.postNukeBgShakeMaxPx : 5;
     var sp = c.postNukeBgShakeSpikePx || [6, 8];
@@ -495,11 +565,26 @@
     } catch (eC) {}
     var laneTo = (ns.State && ns.State.laneOffset) ? ns.State.laneOffset(state, state.lane || 0) : (state.playerX || 0);
     var steer = Math.max(-1, Math.min(1, (laneTo - (state.playerX || 0)) * 1.5));
-    var str = c.bgParallaxStrength != null ? c.bgParallaxStrength : 6;
-    var mx = c.bgParallaxMax != null ? c.bgParallaxMax : 4;
-    var target = Math.max(-mx, Math.min(mx, -str * (curve / 4 + steer)));
-    if (state.phase !== "running") target = 0;
-    var ease = Math.max(0.02, c.bgParallaxEase != null ? c.bgParallaxEase : 0.4);
+    var target, ease, mx;
+    if (c.bgScrollEnabled !== false) {
+      // sega51: visible sideways city scroll — opposite to the curve, and opposite to her lateral position
+      // (sustained while she is in a lane, not only during the lane-change flick). Canvas px (640 wide).
+      var cPx = c.bgScrollCurvePx != null ? c.bgScrollCurvePx : 20;
+      var sPx = c.bgScrollSteerPx != null ? c.bgScrollSteerPx : 12;
+      var cNorm = Math.max(0.5, c.bgScrollCurveNorm != null ? c.bgScrollCurveNorm : 4);
+      var offs = c.laneOffsets || [-0.55, 0.55];
+      var laneSpan = Math.max(0.1, Math.abs(offs[offs.length - 1] || 0.55));
+      var lat = Math.max(-1, Math.min(1, (state.playerX || 0) / laneSpan));
+      mx = c.bgScrollMaxPx != null ? c.bgScrollMaxPx : 24;
+      target = Math.max(-mx, Math.min(mx, -cPx * Math.max(-1, Math.min(1, curve / cNorm)) - sPx * lat));
+      ease = Math.max(0.02, c.bgScrollEase != null ? c.bgScrollEase : 0.6);
+    } else {
+      var str = c.bgParallaxStrength != null ? c.bgParallaxStrength : 6;
+      mx = c.bgParallaxMax != null ? c.bgParallaxMax : 4;
+      target = Math.max(-mx, Math.min(mx, -str * (curve / 4 + steer)));
+      ease = Math.max(0.02, c.bgParallaxEase != null ? c.bgParallaxEase : 0.4);
+    }
+    if (state.phase !== "running" || state.inTunnel) target = 0;
     var cur = state._bgParallaxX || 0;
     cur += (target - cur) * (dt > 0 ? Math.min(1, dt / ease) : 0);
     state._bgParallaxX = cur;
@@ -534,11 +619,16 @@
     ctx.save();
     // sega48: one transform = zoom (anchored at the skyline base / horizon) x overscan, + parallax + shake
     var cfgPz = state.config || {};
-    var pmx = cfgPz.bgParallaxMax != null ? cfgPz.bgParallaxMax : 4;
-    var pad = (shake ? shake.pad : 0) + Math.abs(pmx) + 1;
+    // sega51: overscan covers the larger scroll so the edges never show a gap
+    var pmx = (cfgPz.bgScrollEnabled !== false) ? (cfgPz.bgScrollMaxPx != null ? cfgPz.bgScrollMaxPx : 24)
+      : (cfgPz.bgParallaxMax != null ? cfgPz.bgParallaxMax : 4);
+    // sega51: pad = max(scroll, shake) and the combined offset is clamped to it (never a gap, no double crop)
+    var pad = Math.max(Math.abs(pmx), shake ? shake.pad : 0) + 1;
     var anchorY = height * ((cfgBg.austinBgSingleYFrac != null ? cfgBg.austinBgSingleYFrac : 0) + (cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55));
     var zsc = (state._bgZoom || 1) * (1 + (2 * pad) / Math.max(1, width)) * (1 + pad / Math.max(1, anchorY));
-    ctx.translate(width / 2 + (state._bgParallaxX || 0) + (shake ? shake.x : 0), anchorY + (shake ? shake.y : 0));
+    var offX = Math.max(-(pad - 1), Math.min(pad - 1, (state._bgParallaxX || 0) + (shake ? shake.x : 0)));
+    var offY = Math.max(-(pad - 1), Math.min(pad - 1, shake ? shake.y : 0));
+    ctx.translate(width / 2 + offX, anchorY + offY);
     ctx.scale(zsc, zsc);
     ctx.translate(-width / 2, -anchorY);
     var baseA = ctx.globalAlpha;
@@ -946,6 +1036,22 @@
       var u = Math.max(0, Math.min(1, W.T / Math.max(0.05, expand)));
       var e = 1 - Math.pow(1 - u, 3); // ease-out cubic
       var k = from + (to - from) * e;
+      // sega51: nukeScaleGrow — blast 0.15 -> nukeScaleStart over nukeScaleBlastSec, then keep swelling to
+      // nukeScaleEnd over the rest of the window (eased), anchored at its base on the horizon.
+      if (c.nukeScaleGrow !== false) {
+        var kS = c.nukeScaleStart != null ? c.nukeScaleStart : to;
+        var kE = c.nukeScaleEnd != null ? c.nukeScaleEnd : 1.8;
+        var blast = Math.max(0.05, Math.min(W.len * 0.8, c.nukeScaleBlastSec != null ? c.nukeScaleBlastSec : 0.8));
+        if (W.T < blast) {
+          var ub = W.T / blast;
+          k = from + (kS - from) * (1 - Math.pow(1 - ub, 3));
+        } else {
+          var ug = Math.max(0, Math.min(1, (W.T - blast) / Math.max(0.05, W.len - blast)));
+          var ez = c.nukeScaleEase || "easeInOut";
+          var eg = ez === "linear" ? ug : (ez === "easeOut" ? 1 - Math.pow(1 - ug, 2) : ug * ug * (3 - 2 * ug));
+          k = kS + (kE - kS) * eg;
+        }
+      }
       var ms = s * k;
       var ax = ox + baseX * s; // anchor: mushroom base on horizon (no drift)
       var ay = horizonY;

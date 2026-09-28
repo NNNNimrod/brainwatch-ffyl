@@ -397,7 +397,202 @@
     state.mediumZapElapsed = 0;
     state.globalZapLock = null;
     state._lastMediumPositions = [];
+    // sega51: BOSS REWORK — 4-phase machine (rwChoreo) instead of the old approach/bossZaps/mediums flow
+    state._rwActive = false;
+    if (state.config && state.config.bossRework !== false && boss) {
+      state._rwActive = true;
+      state.bossPhase = "rwWait";
+      state._rw = { phaseT: 0, nextShot: 0, lastLane: Math.random() < 0.5 ? 0 : 1, y0: 0, spawnedMediums: false, dropAcc: 0, dropLane: 0 };
+      boss.rwCtl = true; boss.noFight = true; boss.noTap = true;
+      boss.approach = 1; boss.postGrowDelay = 0; boss.targetBaseY = null; boss.vx = 0; boss.fadeAlpha = 0;
+    }
     return boss;
+  }
+
+  // ---- sega51 BOSS REWORK -------------------------------------------------------------------------
+  function rwCfg(state, k, d) { var c = state.config || {}; return c[k] != null ? c[k] : d; }
+  function rwSetDraw(boss, x, y, scale, alpha, dt) {
+    boss.throb = (boss.throb || 0) + dt * 3.0;
+    var th = 1 + 0.08 * Math.sin(boss.throb);
+    boss.x = x; boss.baseY = y; boss.y = y;
+    boss.drawScale = Math.max(0.01, scale) * th;
+    boss.fadeAlpha = alpha;
+    var sz = (boss.radius || 60) * 2.4 * boss.drawScale;
+    boss.screenRect = { x: x - sz / 2, y: y - sz / 2, w: sz, h: sz };
+    return sz;
+  }
+  function rwHerLane(state) {
+    var offs = (state.config && state.config.laneOffsets) || [-0.55, 0.55];
+    var mid = (offs[0] + offs[offs.length - 1]) / 2;
+    return (state.playerX != null ? state.playerX : 0) < mid ? 0 : 1;
+  }
+  function rwSpawnProjectile(state, x0, y0, lane, travel, scaleK, shootable, kind) {
+    var b = spawnBrain(state, { tiny: true, kind: "tiny", finale: true, x: x0, y: y0, sizeScale: scaleK, startScale: 1 });
+    if (!b) return null;
+    b.rwProj = kind || "proj"; b.noFight = true; b.noTap = !shootable;
+    b.lane = lane; b.pu = 0; b.travel = Math.max(0.2, travel);
+    b.sx = x0; b.sy = y0; b.ex = laneScreenX(state, lane); b.ey = playerElevAimY(state);
+    b.approach = 1; b.postGrowDelay = 0; b.vx = 0; b.telegraph = 0; b.kamikaze = false; b.zapTimer = 99999;
+    b.s0 = kind === "drop" ? 0.7 : 0.3;
+    return b;
+  }
+  function updateRwProjectile(state, b, dt) {
+    var h = state.height || 720;
+    b.pu += dt / b.travel;
+    var p = Math.min(1.35, b.pu);
+    b.ex = laneScreenX(state, b.lane); // her lanes can drift slightly (elevation / approach scale)
+    var x = b.sx + (b.ex - b.sx) * p, y = b.sy + (b.ey - b.sy) * p;
+    b.throb = (b.throb || 0) + dt * 6;
+    var sc = (b.s0 + (1 - b.s0) * Math.min(1, p)) * (1 + 0.06 * Math.sin(b.throb));
+    b.x = x; b.baseY = y; b.y = y; b.drawScale = sc; b.fadeAlpha = 1;
+    var sz = (b.radius || 16) * 2.4 * sc;
+    b.screenRect = { x: x - sz / 2, y: y - sz / 2, w: sz, h: sz };
+    if (b.hitFlash > 0) b.hitFlash = Math.max(0, b.hitFlash - dt * 4);
+    if (!b._rwHitDone && b.pu >= 1) {
+      b._rwHitDone = true;
+      if (rwHerLane(state) === (b.lane | 0)) {
+        var dmg = rwCfg(state, b.rwProj === "drop" ? "bossDropDamage" : "bossProjectileDamage", 30);
+        if (ns.Gameplay && ns.Gameplay.applyDamageExternal) ns.Gameplay.applyDamageExternal(state, dmg);
+        else if (state.health != null) state.health = Math.max(0, state.health - dmg);
+        state._zapHit = true;
+        state.shockFlash = Math.max(state.shockFlash || 0, 1.0 * ((state.config && state.config.zapHitShakeMult != null) ? state.config.zapHitShakeMult : 1));
+        state.eventText = "BRAIN HIT!"; state.eventTimer = 0.75;
+        b.alive = false; b.hp = 0;
+        if (ns.Fx && ns.Fx.spawnExplosion) ns.Fx.spawnExplosion(state, x, y, "sega", 0.55);
+        return;
+      }
+      state.eventText = "DODGED"; state.eventTimer = 0.5;
+    }
+    if (b.pu >= 1.35 || y - sz / 2 > h) b.alive = false;
+  }
+  function rwShrinkOut(state, pred) {
+    var i, b, dur = rwCfg(state, "bossFailsafeShrinkSec", 0.6);
+    for (i = 0; i < state.brains.length; i++) {
+      b = state.brains[i];
+      if (b && b.alive && !b.exitShrink && pred(b)) { b.exitShrink = true; b.exitShrinkT = 0; b.exitShrinkDur = dur; b.noTap = true; b.telegraph = 0; }
+    }
+  }
+  function rwFindBoss(state) {
+    for (var i = 0; i < state.brains.length; i++) { var b = state.brains[i]; if (b && b.isBoss && b.alive && !b.bossDying) return b; }
+    return null;
+  }
+  function rwChoreo(state, dt) {
+    var boss = rwFindBoss(state);
+    var R = state._rw || (state._rw = { phaseT: 0 });
+    if (!boss || state.bossDefeatBeat || state.finaleWon || state.finaleLost) return;
+    var w = state.width || 640, h = state.height || 720, t = state.songClock || 0;
+    var ff = (state.config && state.config.finaleFight) || {};
+    var horizonY = state._roadHorizonY != null ? state._roadHorizonY : h * 0.5;
+    var viewY = Math.max(90, Math.round(h * 0.14)) + h * 0.14;
+    var ph = state.bossPhase;
+    R.phaseT += dt;
+    function go(np) { state.bossPhase = np; R.phaseT = 0; }
+    // failsafe: final phase no later than bossFinalLatestStartSec
+    if (ph !== "rwFinal" && ph !== "rwDescendFinal" && t >= rwCfg(state, "bossFinalLatestStartSec", 205)) {
+      rwShrinkOut(state, function(b) { return b.rwMedium || b.rwProj; });
+      R.y0 = (boss.fadeAlpha > 0.05) ? boss.y : -(boss.radius || 60) * 2.4;
+      go("rwDescendFinal"); ph = state.bossPhase;
+    }
+    var sz;
+    if (ph === "rwWait") {
+      rwSetDraw(boss, w / 2, horizonY, 0.01, 0, dt); boss.noTap = true;
+      if (rwCfg(state, "bossWaitForGround", true) === false || !(state.elevTier > 1) || R.phaseT >= rwCfg(state, "bossWaitForGroundMaxSec", 3)) {
+        go("rwApproach"); R.nextShot = rwCfg(state, "bossApproachProjectileFirstDelay", 1.0);
+      }
+      return;
+    }
+    if (ph === "rwApproach") {
+      var dur = Math.max(0.5, rwCfg(state, "bossApproachDur", 7));
+      var u = Math.min(1, R.phaseT / dur);
+      var s0 = rwCfg(state, "bossApproachStartScale", 0.05);
+      sz = rwSetDraw(boss, w / 2, horizonY + (viewY - horizonY) * (u * (2 - u)), s0 + (1 - s0) * u * u, Math.min(1, u / 0.08), dt);
+      boss.noTap = true;
+      R.nextShot -= dt;
+      if (R.nextShot <= 0 && u < 0.97) {
+        R.nextShot = rwCfg(state, "bossApproachProjectileEvery", 1.1);
+        R.lastLane = 1 - R.lastLane;
+        rwSpawnProjectile(state, boss.x, boss.y + sz * 0.2, R.lastLane, rwCfg(state, "bossProjectileTravelSec", 1.2),
+          rwCfg(state, "bossProjectileScale", 0.42), rwCfg(state, "bossProjectileShootable", true) !== false, "proj");
+      }
+      if (u >= 1) {
+        var n = Math.max(0, Math.round(rwCfg(state, "bossMediumCount", 3))), i, m, mult = rwCfg(state, "bossMediumSpeedMult", 1.5);
+        for (i = 0; i < n; i++) {
+          m = spawnBrain(state, { finale: true, medium: true, kind: "medium", sizeScale: ff.mediumScale != null ? ff.mediumScale : 1.25,
+            hp: rwCfg(state, "bossMediumHp", 100), fastGrow: true, x: w * ((i + 1) / (n + 1)) });
+          if (m && m.alive !== false) {
+            m.rwMedium = true;
+            m.vx = (m.vx || (Math.random() < 0.5 ? -60 : 60)) * mult;
+            m.approachSpeed = (m.approachSpeed || 0.85) * mult;
+            m.zapTimer = (m.zapTimer != null ? m.zapTimer : 1.5) / mult;
+          }
+        }
+        R.y0 = boss.y; R.spawnedMediums = true;
+        go("rwMediums");
+      }
+      return;
+    }
+    if (ph === "rwMediums") {
+      var ex = Math.max(0.2, rwCfg(state, "bossExitUpSec", 1.2));
+      var ue = Math.min(1, R.phaseT / ex);
+      var full = (boss.radius || 60) * 2.4;
+      rwSetDraw(boss, w / 2, R.y0 + (-full - R.y0) * ue * ue, 1, ue >= 1 ? 0 : 1, dt);
+      boss.noTap = true;
+      var aliveM = 0;
+      for (var j = 0; j < state.brains.length; j++) { var bm = state.brains[j]; if (bm && bm.rwMedium && bm.alive && !bm.exitShrink) aliveM++; }
+      if (R.phaseT >= rwCfg(state, "bossMediumPhaseMaxSec", 9)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; }
+      if (aliveM === 0 && ue >= 1) { go("rwDrop"); R.dropAcc = 0; R.dropLane = rwHerLane(state); }
+      return;
+    }
+    if (ph === "rwDrop") {
+      var dd = Math.max(0.5, rwCfg(state, "bossDropDescendSec", 4));
+      var ud = Math.min(1, R.phaseT / dd);
+      var fullD = (boss.radius || 60) * 2.4;
+      var dropY = h * 0.16;
+      sz = rwSetDraw(boss, w / 2, -fullD * 0.6 + (dropY + fullD * 0.6) * (ud * (2 - ud)), 1, 1, dt);
+      boss.noTap = true;
+      R.dropAcc += dt;
+      if (R.dropAcc >= rwCfg(state, "bossDropEvery", 0.7) && ud < 0.98 && R.phaseT > 0.4) {
+        R.dropAcc = 0;
+        var mode = rwCfg(state, "bossDropTargetMode", "herLane");
+        var lane = mode === "alternate" ? (R.dropLane = 1 - R.dropLane) : (mode === "random" ? (Math.random() < 0.5 ? 0 : 1) : rwHerLane(state));
+        rwSpawnProjectile(state, laneScreenX(state, lane), Math.max(20, boss.y + sz * 0.25), lane, rwCfg(state, "bossDropFallSec", 0.9),
+          rwCfg(state, "bossDropScale", 0.42), rwCfg(state, "bossDropShootable", true) !== false, "drop");
+      }
+      if (ud >= 1) { R.y0 = boss.y; go("rwDescendFinal"); }
+      return;
+    }
+    if (ph === "rwDescendFinal") {
+      var fd = Math.max(0.2, rwCfg(state, "bossFinalDescendSec", 1.5));
+      var uf = Math.min(1, R.phaseT / fd);
+      var fy = h * rwCfg(state, "bossFinalYFrac", 0.40);
+      var fx = rwCfg(state, "bossFinalFollowLane", true) !== false ? laneScreenX(state, rwHerLane(state)) : w / 2;
+      var ease = uf * uf * (3 - 2 * uf);
+      rwSetDraw(boss, boss.x + (fx - boss.x) * Math.min(1, dt * 3), R.y0 + (fy - R.y0) * ease, 1, 1, dt);
+      if (uf >= 1) {
+        boss.rwCtl = false; boss.noFight = false; boss.noTap = false;
+        boss.approach = 1; boss.postGrowDelay = 0; boss.targetBaseY = null; boss.vx = 0; boss.bobAmp = Math.min(boss.bobAmp || 6, 6);
+        boss.zapTimer = 0.6; boss.fadeAlpha = 1;
+        go("rwFinal");
+      }
+      return;
+    }
+    if (ph === "rwFinal") {
+      boss.vx = 0;
+      if (rwCfg(state, "bossFinalFollowLane", true) !== false) {
+        var tx = laneScreenX(state, rwHerLane(state));
+        boss.x += (tx - boss.x) * Math.min(1, dt * 2.5);
+      }
+    }
+  }
+
+  // sega51: glow-warning seconds per attacker
+  function teleSecFor(state, brain, cfgB) {
+    var c = state.config || {};
+    if (state._rwActive && c.bossRework !== false) {
+      if (brain.isBoss || brain.bossOffspring) return c.bossGlowWarnSec != null ? c.bossGlowWarnSec : 0.5;
+      if (brain.rwMedium) return c.bossMediumGlowWarnSec != null ? c.bossMediumGlowWarnSec : cfgB.telegraphSeconds;
+    }
+    return cfgB.telegraphSeconds;
   }
 
   function spawnFinaleMediums(state) {
@@ -683,6 +878,7 @@
       }
       r = brain.screenRect;
       if (brain.bossDying) { continue; }
+      if (brain.noTap) { continue; } // sega51: invulnerable boss (phases A-C) / non-shootable projectiles
       dx = canvasX - (r.x + r.w / 2);
       dy = canvasY - (r.y + r.h / 2);
       dist = dx * dx + dy * dy;
@@ -1369,6 +1565,7 @@
     if (!(state.finaleMode === "fight" || state.finaleFight)) {
       return;
     }
+    if (state._rwActive) { rwChoreo(state, dt); return; } // sega51
     if (state.bossPhase === "approach") {
       // Stay in approach until boss fully emerged
       var boss = null;
@@ -1492,6 +1689,7 @@
       return;
     }
     if (c.bossOffspringEnabled === false) return;
+    if (state._rwActive && state.bossPhase !== "rwFinal") return; // sega51: offspring only in the final fight
     state._bossFightT = (state._bossFightT || 0) + dt;
     var boss = null, i, b, alive = 0;
     for (i = 0; i < state.brains.length; i++) {
@@ -1599,6 +1797,8 @@
         updateTunnelLaneBrain(state, brain, dt);
         continue;
       }
+      if (brain.rwProj) { updateRwProjectile(state, brain, dt); continue; } // sega51
+      if (brain.rwCtl) { brain.telegraph = 0; continue; } // sega51: boss positioned by rwChoreo
       brain.bobPhase += dt * 2.4;
       // sega31m: ALL brains throb faster+harder as HP↓ (visual pulse, not throw rate)
       var throbRate = 3.2;
@@ -1699,7 +1899,7 @@
         brain.zapTimer -= dt;
         if (brain.zapTimer <= 0) {
           brain.attackLane = state.lane;
-          brain.telegraph = cfg.telegraphSeconds;
+          brain.telegraph = brain.telegraphMax = teleSecFor(state, brain, cfg); // sega51
           state.globalZapLock = brain;
         }
       }
@@ -1793,7 +1993,7 @@
     }
 
     if (brain.telegraph > 0) {
-      var teleMax = (state.config && state.config.brains && state.config.brains.telegraphSeconds != null)
+      var teleMax = brain.telegraphMax ? brain.telegraphMax : (state.config && state.config.brains && state.config.brains.telegraphSeconds != null)
         ? state.config.brains.telegraphSeconds
         : ((ns.CONFIG.brains && ns.CONFIG.brains.telegraphSeconds) || 1.42);
       var tProg = 1 - (brain.telegraph / Math.max(0.05, teleMax));

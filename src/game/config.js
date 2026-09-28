@@ -30,6 +30,23 @@
     approachCenterEase: 1.0,       // camera-centring weight eases in/out over this many sec
     tunnelApproachMaxOffsetFrac: 0.12, // her on-screen offset from centre capped (via camera weight) on approach
     starfieldEnabled: true, starfieldFadeStart: 76.0, starfieldFadeDur: 3.5, starfieldHoldUntil: 84.5, // sega50: was 78.0 / 1.5; // city -> black starfield before the mouth
+    // --- sega51 (baked from editor-live.json 2026-09-27): horizon cars, boss rework, mouth fade, SECOND VERSE at mouth,
+    //     bg scroll, boss bg lightning, erratic nuke cycle/shake, nuke scale grow ---
+    carSpawnAtHorizon: true, carSpawnHorizonFrac: 0.95, bossRework: true, bossWaitForGround: true, bossWaitForGroundMaxSec: 3.0,
+    bossApproachDur: 7.0, bossApproachStartScale: 0.05, bossApproachProjectileFirstDelay: 1.0, bossApproachProjectileEvery: 1.1,
+    bossProjectileTravelSec: 1.2, bossProjectileScale: 0.42, bossProjectileDamage: 30, bossProjectileShootable: true,
+    bossMediumCount: 3, bossMediumSpeedMult: 1.5, bossMediumHp: 100, bossMediumGlowWarnSec: 1.42, bossExitUpSec: 1.2,
+    bossMediumPhaseMaxSec: 9.0, bossDropDescendSec: 4.0, bossDropEvery: 0.7, bossDropFallSec: 0.9, bossDropScale: 0.42,
+    bossDropDamage: 30, bossDropShootable: true, bossDropTargetMode: "herLane", bossFinalDescendSec: 1.5, bossFinalYFrac: 0.4,
+    bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 5.0,
+    tunnelMouthFadeEase: "smooth", secondVerseTitleOn: true, secondVerseTitleText: "SECOND VERSE", secondVerseTitleSec: 2.5,
+    secondVerseTitleFadeSec: 0.5, tunnelInteriorSectionTitle: false, bgScrollEnabled: true, bgScrollCurvePx: 20, bgScrollSteerPx: 12,
+    bgScrollMaxPx: 24, bgScrollEase: 0.6, bgScrollCurveNorm: 4, bossBgLightning: true, bossBgLightningIntensity: 1.5,
+    bossBgLightningEvery: 0.3, bossBgLightningMaxBolts: 6, nukeCycleErratic: true, nukeCycleHoldMin: 0.8, nukeCycleHoldMax: 2.5,
+    nukeCycleFadeMin: 0.3, nukeCycleFadeMax: 1.2, nukeCycleSnapChance: 0.3, nukeCycleFlickerChance: 0.35, nukeShakeErratic: true,
+    nukeShakeJitterPx: 2, nukeShakeAmpPx: [4, 10], nukeShakeBurstSec: [0.25, 0.6], nukeShakeBurstGapSec: [0.4, 1.6],
+    nukeShakeSpikeChance: 0.25, nukeShakeSpikePx: [12, 18], nukeShakeViolentChance: 0.2, nukeScaleGrow: true, nukeScaleStart: 1.15,
+    nukeScaleEnd: 1.8, nukeScaleBlastSec: 0.8, nukeScaleEase: "easeInOut",
     approachNoBrainsStart: 78.0, // sega50: no-brains window start, decoupled from starfieldFadeStart
     approachNoBrains: true, // sega49: no brains of any kind from starfieldFadeStart until tunnel interior brains start; on-screen ones shrink out at 78 s
     tunnelExitConverge: true, tunnelExitTargetX: 0.5, tunnelExitTargetY: 0.48, tunnelExitEase: "easeInOutCubic", // exit shrinks into the VP

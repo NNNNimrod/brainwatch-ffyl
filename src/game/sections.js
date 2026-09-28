@@ -158,11 +158,19 @@
     state.brainSpawnTimer = 0;
   }
 
-  function spawnAheadCar(state, lane, segmentsAhead, sprite) {
+  function spawnAheadCar(state, lane, segmentsAhead, sprite, tutorialFirstSeg) {
     if (!state.trackLength || !state.segments || !state.segments.length) {
       return null;
     }
     var offsets = state.config.laneOffsets;
+    // sega51: carSpawnAtHorizon — tutorial cars (first cars, 5 s) start at the horizon instead of
+    // 28/48/70 segments ahead (10-23% of the 300-segment draw distance = popped in mid-road).
+    // The stagger is kept by pushing the later ones further past the horizon.
+    var cfgH = state.config || {};
+    if (cfgH.carSpawnAtHorizon !== false && tutorialFirstSeg != null) {
+      var hzF = Math.max(0.5, Math.min(1, cfgH.carSpawnHorizonFrac != null ? cfgH.carSpawnHorizonFrac : 0.95));
+      segmentsAhead = Math.floor((state.drawDistance || 300) * hzF) + (segmentsAhead - tutorialFirstSeg);
+    }
     var z = Util.increase(state.position + state.playerZ, state.segmentLength * segmentsAhead, state.trackLength);
     var car = {
       offset: offsets[lane] + (Math.random() - 0.5) * 0.04,
@@ -183,9 +191,9 @@
   function spawnTutorialCars(state) {
     var sprites = SPRITES.CARS;
     // Exactly 3 cybercab/car enemies staggered ahead for practice
-    spawnAheadCar(state, 1, 28, sprites[0]);
-    spawnAheadCar(state, 0, 48, sprites[1] || sprites[0]);
-    spawnAheadCar(state, 1, 70, sprites[2] || sprites[0]);
+    spawnAheadCar(state, 1, 28, sprites[0], 28);
+    spawnAheadCar(state, 0, 48, sprites[1] || sprites[0], 28);
+    spawnAheadCar(state, 1, 70, sprites[2] || sprites[0], 28);
     state._tutorialCarsSpawned = true;
     state._tutorialCarCount = 3;
   }
@@ -838,6 +846,9 @@
         if (cfg.sectionTitleEnabled === false) return;
         var id = sec.id;
         if (id !== "verse1" && id !== "chorus1" && id !== "verse2" && id !== "chorus2") return;
+        // sega51: no section title while she is inside the tunnel (verse2 starts at 96 s, interior 92-104.3 s);
+        // SECOND VERSE is shown at the mouth instead (sega31x secondVerseTitleOn)
+        if (cfg.tunnelInteriorSectionTitle !== true && (state.inTunnel || (state._tunnelPhase && state._tunnelPhase !== 'done' && state._tunnelPhase !== 'roadWait'))) return;
         var labels = cfg.sectionTitleLabels || {};
         var label = labels[id];
         if (!label) {

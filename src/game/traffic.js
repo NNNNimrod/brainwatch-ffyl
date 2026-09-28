@@ -85,11 +85,25 @@
     return true;
   }
 
+  // sega51: is track position z between a few segments behind the player and the horizon spawn line?
+  function carInVisibleWindow(state, z, hzFrac) {
+    var L = state.segmentLength || 200, N = state.segments.length, tl = state.trackLength || (N * L);
+    var playerZ = Util.increase(state.position || 0, state.playerZ || 0, tl);
+    var rel = z - playerZ;
+    rel = ((rel % tl) + tl) % tl; // 0..tl ahead
+    var ahead = (state.drawDistance || 300) * hzFrac * L;
+    var behind = 20 * L;
+    return rel < ahead || rel > tl - behind;
+  }
+
   function spawnCar(state) {
     var attempts = 0;
     var lane, offset, z, sprite, car, segment, ok;
     var minDist = state.segmentLength * (state._trafficMinDistSeg != null ? state._trafficMinDistSeg : 12);
     var fromHorizon = !!(state._spawnCarsFromHorizon || state.postBossCars);
+    var cfgH = state.config || {};
+    var atHorizon = cfgH.carSpawnAtHorizon !== false; // sega51
+    var hzFrac = Math.max(0.5, Math.min(1, cfgH.carSpawnHorizonFrac != null ? cfgH.carSpawnHorizonFrac : 0.95));
 
     while (attempts < 40) {
       attempts++;
@@ -97,11 +111,16 @@
       if (fromHorizon) {
         // sega31s: spawn ahead near horizon (far draw distance), not random/behind
         var playerZ = Util.increase(state.position || 0, state.playerZ || 0, state.trackLength);
-        var aheadSeg = Math.floor((state.drawDistance || 300) * (0.55 + Math.random() * 0.4));
+        // sega51: carSpawnAtHorizon — right at the far draw distance (was 55-95% of it = mid-road pop-in)
+        var hzLo = atHorizon ? Math.max(0.5, hzFrac - 0.05) : 0.55, hzHi = atHorizon ? hzFrac : 0.95;
+        var aheadSeg = Math.floor((state.drawDistance || 300) * (hzLo + Math.random() * (hzHi - hzLo)));
         z = Util.increase(playerZ, aheadSeg * state.segmentLength, state.trackLength);
         z = Math.floor(z / state.segmentLength) * state.segmentLength;
       } else {
         z = Math.floor(Math.random() * state.segments.length) * state.segmentLength;
+        // sega51: never place a density car inside the visible stretch of road (just behind the player
+        // up to the horizon) — it would pop in mid-road. Off-screen cars drive in from the horizon.
+        if (atHorizon && carInVisibleWindow(state, z, hzFrac)) continue;
       }
       if (!zoneClear(state, z, lane, minDist)) {
         continue;
