@@ -69,6 +69,8 @@
     // sega45: literal strip paths live in config.austinBgStripPaths (deploy scanner ships exactly these)
     function stripPath(k) {
       var m = bootCfg.austinBgStripPaths || {};
+      // sega52: duskCleanCapitolFix — repaired dusk-clean plate (Capitol dome top restored)
+      if (k === "dusk-clean" && bootCfg.duskCleanCapitolFix === true) return "images/bg-austin-new/fast/background-dusk-clean-capfix.jpg";
       return m[k] || ("images/bg-austin-new/fast/background-" + k + ".jpg");
     }
     var fastCritNames = fastCritKeys.map(function(k) { return stripPath(k).replace(/^images\//, ""); });
@@ -228,6 +230,7 @@
         // prebake pack loads only if config explicitly switches back to mode "prebake".
         (function loadCybercabsLazy() {
           var cols = ["goldfinch","red","silver","blue","white","black"];
+          if (cfg.carExcludeBlack !== false) cols.pop(); // sega52: black cab ditched (not loaded / not shipped)
           var cars = ["car01","car02","car03","car04"];
           var names = [];
           var i, j;

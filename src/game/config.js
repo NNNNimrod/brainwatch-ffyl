@@ -34,9 +34,9 @@
     //     bg scroll, boss bg lightning, erratic nuke cycle/shake, nuke scale grow ---
     carSpawnAtHorizon: true, carSpawnHorizonFrac: 0.95, bossRework: true, bossWaitForGround: true, bossWaitForGroundMaxSec: 3.0,
     bossApproachDur: 7.0, bossApproachStartScale: 0.05, bossApproachProjectileFirstDelay: 1.0, bossApproachProjectileEvery: 1.1,
-    bossProjectileTravelSec: 1.2, bossProjectileScale: 0.42, bossProjectileDamage: 30, bossProjectileShootable: true,
+    bossProjectileTravelSec: 1.0, bossProjectileScale: 0.42, bossProjectileDamage: 30, bossProjectileShootable: true,
     bossMediumCount: 3, bossMediumSpeedMult: 1.5, bossMediumHp: 100, bossMediumGlowWarnSec: 1.42, bossExitUpSec: 1.2,
-    bossMediumPhaseMaxSec: 9.0, bossDropDescendSec: 4.0, bossDropEvery: 0.7, bossDropFallSec: 0.9, bossDropScale: 0.42,
+    bossMediumPhaseMaxSec: 9.0, bossDropDescendSec: 4.0, bossDropEvery: 0.7, bossDropFallSec: 0.6, bossDropScale: 0.42,
     bossDropDamage: 30, bossDropShootable: true, bossDropTargetMode: "herLane", bossFinalDescendSec: 1.5, bossFinalYFrac: 0.4,
     bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossShootableBeforeFinal: true, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 5.0,
     tunnelMouthFadeEase: "smooth", secondVerseTitleOn: true, secondVerseTitleText: "VERSE 2", secondVerseTitleSec: 2.5,
@@ -622,6 +622,8 @@
       clean: [0.371, 0.371, 0.373, 0.354, 0.354, 0.354, 0.36, 0.365, 0.36, 0.36, 0.36, 0.417, 0.417, 0.419, 0.427, 0.44, 0.65, 0.667, 0.694, 0.679, 0.679, 0.59, 0.562, 0.558, 0.558, 0.558, 0.56, 0.342, 0.329, 0.329, 0.329, 0.329, 0.34, 0.421, 0.617, 0.565, 0.529, 0.502, 0.492, 0.492, 0.492, 0.523, 0.521, 0.517, 0.517, 0.515, 0.515, 0.515, 0.546, 0.598, 0.656, 0.656, 0.656, 0.66, 0.708, 0.729, 0.729, 0.729, 0.658, 0.658, 0.658, 0.658, 0.688, 0.685, 0.571, 0.544, 0.5, 0.481, 0.481, 0.479, 0.479, 0.479, 0.575, 0.558, 0.558, 0.558, 0.558, 0.56, 0.573, 0.573, 0.573, 0.429, 0.277, 0.152, 0.152, 0.152, 0.158, 0.171, 0.156, 0.15, 0.15, 0.15, 0.412, 0.435, 0.496, 0.481, 0.481, 0.481, 0.481, 0.483, 0.642, 0.623, 0.615, 0.594, 0.585, 0.585, 0.585, 0.588, 0.594, 0.602, 0.64, 0.704, 0.704, 0.681, 0.681, 0.681, 0.681, 0.617, 0.588, 0.548, 0.548, 0.542, 0.531, 0.531, 0.531, 0.546, 0.546, 0.546],
       dusk: [0.698, 0.698, 0.233, 0.233, 0.233, 0.233, 0.683, 0.662, 0.633, 0.633, 0.633, 0.692, 0.633, 0.633, 0.633, 0.646, 0.66, 0.717, 0.662, 0.662, 0.662, 0.662, 0.662, 0.665, 0.673, 0.694, 0.319, 0.319, 0.319, 0.49, 0.727, 0.729, 0.729, 0.631, 0.579, 0.546, 0.494, 0.477, 0.477, 0.477, 0.485, 0.517, 0.544, 0.579, 0.64, 0.519, 0.519, 0.519, 0.619, 0.619, 0.619, 0.619, 0.725, 0.725, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.729, 0.725, 0.685, 0.685, 0.465, 0.454, 0.454, 0.454, 0.454, 0.569, 0.569, 0.569, 0.64, 0.66, 0.654, 0.629, 0.59, 0.585, 0.571, 0.571, 0.571, 0.617, 0.338, 0.152, 0.113, 0.113, 0.113, 0.123, 0.127, 0.113, 0.113, 0.113, 0.135, 0.325, 0.49, 0.481, 0.481, 0.465, 0.465, 0.465, 0.465, 0.635, 0.625, 0.625, 0.625, 0.627, 0.625, 0.625, 0.625, 0.633, 0.648, 0.667, 0.617, 0.615, 0.615, 0.615, 0.725, 0.725, 0.725, 0.723, 0.723, 0.723, 0.45, 0.44, 0.44, 0.44, 0.729],
       acid: [0.698, 0.698, 0.227, 0.227, 0.227, 0.233, 0.7, 0.629, 0.629, 0.629, 0.654, 0.692, 0.631, 0.631, 0.631, 0.644, 0.658, 0.698, 0.662, 0.646, 0.617, 0.617, 0.617, 0.535, 0.535, 0.535, 0.321, 0.321, 0.321, 0.492, 0.725, 0.729, 0.729, 0.631, 0.579, 0.544, 0.496, 0.481, 0.481, 0.481, 0.487, 0.519, 0.548, 0.602, 0.635, 0.519, 0.519, 0.519, 0.623, 0.621, 0.621, 0.621, 0.667, 0.677, 0.715, 0.729, 0.729, 0.729, 0.727, 0.727, 0.673, 0.673, 0.673, 0.685, 0.54, 0.469, 0.452, 0.452, 0.452, 0.627, 0.627, 0.627, 0.554, 0.554, 0.554, 0.654, 0.627, 0.59, 0.554, 0.554, 0.554, 0.573, 0.4, 0.4, 0.304, 0.117, 0.117, 0.117, 0.129, 0.131, 0.117, 0.117, 0.117, 0.148, 0.323, 0.492, 0.473, 0.473, 0.473, 0.465, 0.465, 0.465, 0.627, 0.627, 0.64, 0.637, 0.627, 0.621, 0.621, 0.621, 0.637, 0.648, 0.665, 0.608, 0.608, 0.608, 0.613, 0.613, 0.615, 0.615, 0.619, 0.702, 0.723, 0.446, 0.44, 0.44, 0.44, 0.723]
+,
+      greenbelt: [0.429,  0.412,  0.417,  0.421,  0.438,  0.433,  0.433,  0.433,  0.442,  0.4,  0.404,  0.412,  0.417,  0.425,  0.421,  0.396,  0.4,  0.396,  0.379,  0.35,  0.354,  0.367,  0.338,  0.342,  0.367,  0.358,  0.358,  0.371,  0.388,  0.392,  0.371,  0.346,  0.367,  0.367,  0.408,  0.408,  0.421,  0.421,  0.425,  0.438,  0.467,  0.529,  0.55,  0.617,  0.613,  0.613,  0.458,  0.625,  0.629,  0.613,  0.608,  0.604,  0.613,  0.617,  0.608,  0.604,  0.608,  0.617,  0.604,  0.604,  0.608,  0.613,  0.613,  0.617,  0.617,  0.613,  0.617,  0.608,  0.608,  0.613,  0.613,  0.613,  0.613,  0.613,  0.613,  0.617,  0.629,  0.625,  0.625,  0.629,  0.613,  0.621,  0.621,  0.621,  0.621,  0.479,  0.546,  0.492,  0.421,  0.404,  0.342,  0.317,  0.317,  0.321,  0.296,  0.292,  0.292,  0.3,  0.292,  0.3,  0.296,  0.296,  0.296,  0.308,  0.317,  0.317,  0.312,  0.304,  0.304,  0.308,  0.308,  0.304,  0.321,  0.321,  0.362,  0.354,  0.354,  0.358,  0.367,  0.367,  0.367,  0.404,  0.379,  0.379,  0.383,  0.392,  0.375,  0.375] // sega52: v3 bluff/tree tops
     },
     // sega45: literal strip paths (deploy-pages.sh ships exactly what the code names)
     austinBgStripPaths: {
@@ -629,7 +631,8 @@
       "violet": "images/bg-austin-new/fast/background-violet.jpg",
       "green-clean": "images/bg-austin-new/fast/background-green-clean.jpg",
       "dusk": "images/bg-austin-new/fast/background-dusk.jpg",
-      "acid": "images/bg-austin-new/fast/background-acid.jpg"
+      "acid": "images/bg-austin-new/fast/background-acid.jpg",
+      "greenbelt": "images/bg-austin-new/fast/background-greenbelt-night-v3.jpg" // sega52: night greenbelt v3
     },
     austinBgBlendSec: 1.5, // sega45: color-shift blend between pre-nuke plates (same skyline)
     verse1AustinBgPlate: "dusk-clean",
@@ -642,7 +645,7 @@
     austinBgFastStrips: true,
     austinBgFastStripCritical: ["dusk-clean"], // sega45: clean dusk = first-load plate (start screen, verse1)
     // sega45 lazy strip queue (key, song-time prio): violet well before 59, green before 104, fire plates for the nuke
-    austinBgLazyStrips: [["violet", 20], ["green-clean", 70], ["dusk", 140], ["acid", 141]],
+    austinBgLazyStrips: [["violet", 20], ["greenbelt", 45], ["green-clean", 70], ["dusk", 140], ["acid", 141]], // sega52: + greenbelt
     // sega45 post-nuke (156.5+): slow cross-fade between the two fire plates + background-only shake
     postNukeFirePlates: ["dusk", "acid"],
     postNukeFireHoldSec: 2.67, // sega48 (was 4.0)
@@ -862,7 +865,7 @@
     tunnelBrainTinyScale: 0.5,
     tunnelBrainMediumScale: 1.25,
     tunnelBrainDamage: null, // null = medium brainZap damage
-    tunnelEntranceAsset: 'images/fx/tunnel-entrance.png',
+    tunnelEntranceAsset: 'images/fx/tunnel-portal-v2.png', // sega52: glowing portal in the hills (was tunnel-entrance.png)
     tunnelEntranceContentFrac: 0.67, // sega33: source-crop black void below content
     tunnelInteriorFramePrefix: 'images/fx/tunnel-interior-f',
     tunnelInteriorFrameExt: '.png',
@@ -951,7 +954,59 @@
       { score: 35000, label: "Diamond Hands" },
       { score: 70000, label: "Fight Ready" },
       { score: 120000, label: "BRAIN WATCH" }
-    ]
+    ],
+    // ===== sega52 baked from editor (2026-09-28 CT) =====
+    startBgFadeInSec: 5.0,
+    bgHoldingCrossfadeOn: true,
+    bgHoldingCrossfadeFrom: "dusk-clean",
+    bgHoldingCrossfadeTo: "violet",
+    bgHoldingCrossfadeStart: 40.2,
+    bgHoldingCrossfadeEnd: 58.58,
+    bgHoldingCrossfadeEase: "smooth",
+    greenbeltPlateOn: true,
+    greenbeltPlateChoice: "v3",
+    greenbeltFadeStart: 59.0,
+    greenbeltFadeSec: 5.0,
+    greenbeltLazyPrio: 45,
+    greenbeltReplacesStarfield: true,
+    greenbeltToMouthStart: 84.5,
+    tunnelPortalOn: true,
+    tunnelPortalChoice: "v2",
+    carKeepTutorialCars: true,
+    coastRemoveOnlyOffscreen: true,
+    carFeedFromHorizon: true,
+    carMinVisibleAhead: 3,
+    carFeedPerTick: 1,
+    carFeedSpeedFracMin: 0.45,
+    carFeedSpeedFracMax: 0.8,
+    bossRespawnNormal: true,
+    bossDoomOn: true,
+    bossDoomLeadSec: 5.0,
+    bossDoomAttackSec: 1.2,
+    bossDoomText: "YOU FAILED HUMANITY",
+    bossLandFromCurrentY: true,
+    bossLandEaseSec: 1.6,
+    tunnelEnterFromCurrentAlt: true,
+    carExcludeBlack: true,
+    carScaleY: 1.12,
+    bossSizeMult: 1.45,
+    bossGlowOn: true,
+    bossGlowColor: "#b04dff",
+    bossGlowAlpha: 0.35,
+    bossGlowPulseSec: 2.4,
+    bossGlowSizeMult: 3.4,
+    tinyBrainPersistOffscreen: true,
+    bossTinySpeedMatchTunnel: true,
+    bossOffspringAsProjectiles: true,
+    bossLaneLeanNormal: true,
+    shadowFollowDepth: true,
+    shadowAltShrink: 0.6,
+    shadowAltFade: 0.6,
+    shadowHideInTunnel: true,
+    duskCleanCapitolFix: true,
+    greenbeltPlatePath: "images/bg-austin-new/fast/background-greenbelt-night-v3.jpg",
+    tunnelPortalPath: "images/fx/tunnel-portal-v2.png",
+    greenbeltPinUntilSec: 92.0
   };
 
   var keyMap = {

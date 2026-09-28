@@ -361,7 +361,7 @@
       // Drift down into upper playfield while growing
       brain.targetBaseY = bannerClear + Math.round(h * (0.10 + Math.random() * 0.14));
     }
-    if (!opts.isBoss && !opts.tunnelLane && approachNoBrainsActive(state)) {
+    if (!opts.isBoss && !opts.tunnelLane && (approachNoBrainsActive(state) || state.bossDoom)) { // sega52: + boss doom
       // sega49: swallowed during the starfield approach (never added to state.brains)
       brain.alive = false; brain.hp = 0;
       return brain;
@@ -379,7 +379,8 @@
       isBoss: true,
       finale: true,
       fromTop: true,
-      sizeScale: ff.bossScale != null ? ff.bossScale : 2,
+      // sega52: bossSizeMult 1.45 — radius (draw + hit rect) 45% bigger in every phase
+      sizeScale: (ff.bossScale != null ? ff.bossScale : 2) * ((state.config && state.config.bossSizeMult != null) ? state.config.bossSizeMult : 1),
       hp: ff.bossHp != null ? ff.bossHp : (combat.bossHp || 1000),
       approachDuration: ff.approachDuration != null ? ff.approachDuration : 3.2,
       startScale: 0.02,
@@ -439,9 +440,13 @@
   function updateRwProjectile(state, b, dt) {
     var h = state.height || 720;
     b.pu += dt / b.travel;
-    var p = Math.min(1.35, b.pu);
+    var cT = state.config || {};
+    var persist = cT.tinyBrainPersistOffscreen !== false;
+    var p = persist ? b.pu : Math.min(1.35, b.pu);
+    // sega52: bossTinySpeedMatchTunnel — accelerate like the tunnel runners (slow far, fast close: p = u^2)
+    var pp = (cT.bossTinySpeedMatchTunnel !== false && b.rwProj !== "drop") ? p * p : p;
     b.ex = laneScreenX(state, b.lane); // her lanes can drift slightly (elevation / approach scale)
-    var x = b.sx + (b.ex - b.sx) * p, y = b.sy + (b.ey - b.sy) * p;
+    var x = b.sx + (b.ex - b.sx) * pp, y = b.sy + (b.ey - b.sy) * pp;
     b.throb = (b.throb || 0) + dt * 6;
     var sc = (b.s0 + (1 - b.s0) * Math.min(1, p)) * (1 + 0.06 * Math.sin(b.throb));
     b.x = x; b.baseY = y; b.y = y; b.drawScale = sc; b.fadeAlpha = 1;
@@ -463,7 +468,10 @@
       }
       state.eventText = "DODGED"; state.eventTimer = 0.5;
     }
-    if (b.pu >= 1.35 || y - sz / 2 > h) b.alive = false;
+    // sega52: tinyBrainPersistOffscreen — a miss keeps flying until it is fully past a screen edge
+    var wv = state.width || 1280;
+    var off = (y - sz / 2 > h) || (x + sz / 2 < 0) || (x - sz / 2 > wv) || (y + sz / 2 < 0 && b.pu > 1);
+    if (persist ? (off || b.pu > 6) : (b.pu >= 1.35 || y - sz / 2 > h)) b.alive = false;
   }
   function rwShrinkOut(state, pred) {
     var i, b, dur = rwCfg(state, "bossFailsafeShrinkSec", 0.6);
@@ -472,6 +480,31 @@
       if (b && b.alive && !b.exitShrink && pred(b)) { b.exitShrink = true; b.exitShrinkT = 0; b.exitShrinkDur = dur; b.noTap = true; b.telegraph = 0; }
     }
   }
+  // sega52: boss doom — every live brain glows and converges on her; sections kills her when they arrive
+  function startBossDoom(state) {
+    var sec = rwCfg(state, "bossDoomAttackSec", 1.2), i, b;
+    state.bossDoom = true; state._bossDoomT = 0;
+    for (i = 0; i < state.brains.length; i++) {
+      b = state.brains[i];
+      if (!b || !b.alive || b.bossDying || b.exitShrink) continue;
+      b.doomCtl = true; b.noTap = true; b.noFight = true; b.rwCtl = false;
+      b.dsx = b.x != null ? b.x : (state.width || 1280) / 2; b.dsy = b.y != null ? b.y : (state.height || 720) * 0.4;
+      b.ds0 = b.drawScale || 1; b.dpu = 0; b.dsec = sec;
+      b.telegraphMax = sec; b.telegraph = sec;
+    }
+  }
+  function updateDoomBrain(state, b, dt) {
+    b.dpu = Math.min(1, b.dpu + dt / Math.max(0.1, b.dsec));
+    var e = b.dpu * b.dpu * (3 - 2 * b.dpu);
+    var tx = laneScreenX(state, rwHerLane(state)), ty = playerElevAimY(state);
+    var x = b.dsx + (tx - b.dsx) * e, y = b.dsy + (ty - b.dsy) * e;
+    b.throb = (b.throb || 0) + dt * 12;
+    var sc = b.ds0 * (1 - 0.35 * e) * (1 + 0.1 * Math.sin(b.throb));
+    b.x = x; b.baseY = y; b.y = y; b.drawScale = sc; b.fadeAlpha = 1;
+    b.telegraph = Math.max(0.001, b.dsec * (1 - b.dpu)); // glow ramps to full on arrival
+    var sz = (b.radius || 20) * 2.4 * sc;
+    b.screenRect = { x: x - sz / 2, y: y - sz / 2, w: sz, h: sz };
+  }
   function rwFindBoss(state) {
     for (var i = 0; i < state.brains.length; i++) { var b = state.brains[i]; if (b && b.isBoss && b.alive && !b.bossDying) return b; }
     return null;
@@ -479,7 +512,7 @@
   function rwChoreo(state, dt) {
     var boss = rwFindBoss(state);
     var R = state._rw || (state._rw = { phaseT: 0 });
-    if (!boss || state.bossDefeatBeat || state.finaleWon || state.finaleLost) return;
+    if (!boss || state.bossDefeatBeat || state.finaleWon || state.finaleLost || state.bossDoom) return;
     var w = state.width || 640, h = state.height || 720, t = state.songClock || 0;
     var ff = (state.config && state.config.finaleFight) || {};
     var horizonY = state._roadHorizonY != null ? state._roadHorizonY : h * 0.5;
@@ -505,7 +538,13 @@
     var sz;
     if (ph === "rwWait") {
       rwSetDraw(boss, w / 2, horizonY, 0.01, 0, dt); boss.noTap = true;
-      if (rwCfg(state, "bossWaitForGround", true) === false || !(state.elevTier > 1) || R.phaseT >= rwCfg(state, "bossWaitForGroundMaxSec", 3)) {
+      var landed = false;
+      if (rwCfg(state, "bossLandFromCurrentY", true) !== false && ns.Sega31 && ns.Sega31.easeLandToGround &&
+          (state.elevTier > 1 || state._landY0 != null)) {
+        landed = ns.Sega31.easeLandToGround(state, dt); // sega52: smooth landing from her drawn altitude
+        if (!landed) return;
+      }
+      if (landed || rwCfg(state, "bossWaitForGround", true) === false || !(state.elevTier > 1) || R.phaseT >= rwCfg(state, "bossWaitForGroundMaxSec", 3)) {
         go("rwApproach"); R.nextShot = rwCfg(state, "bossApproachProjectileFirstDelay", 1.0);
       }
       return;
@@ -1645,7 +1684,8 @@
     brain.zapTimer = 99999; brain.postGrowDelay = 99999; brain.noFight = true;
     var speed = brain.laneSpeed != null ? brain.laneSpeed : (c.tunnelBrainSpeed != null ? c.tunnelBrainSpeed : 0.6);
     brain.laneU = (brain.laneU || 0) + dt * Math.max(0.05, speed);
-    var u = Math.min(1.35, brain.laneU);
+    var persistT = c.tinyBrainPersistOffscreen !== false; // sega52
+    var u = persistT ? brain.laneU : Math.min(1.35, brain.laneU);
     var path = state._tunnelPath;
     var vpX = w * (path && path.vpX != null ? path.vpX : 0.5);
     var vpY = h * (path && path.vpY != null ? path.vpY : 0.48);
@@ -1686,8 +1726,9 @@
       state.eventText = "DODGED";
       state.eventTimer = 0.5;
     }
-    if (u >= 1.35 || brain.y - size / 2 > h) {
-      brain.alive = false; // passed her, off screen — silent
+    var offT = (brain.y - size / 2 > h) || (brain.x + size / 2 < 0) || (brain.x - size / 2 > w);
+    if (persistT ? (offT || u > 4) : (u >= 1.35 || brain.y - size / 2 > h)) {
+      brain.alive = false; // passed her, fully off screen — silent
     }
   }
 
@@ -1729,6 +1770,15 @@
     if (state._bossOffspringAcc < every) return;
     if (alive >= cap) return; // wait for a free slot (acc keeps it ready)
     state._bossOffspringAcc = 0;
+    // sega52: bossOffspringAsProjectiles — phase D tinies fire at her lanes like phase A projectiles (tunnel speed)
+    if (state._rwActive && c.bossOffspringAsProjectiles !== false) {
+      var lnO = Math.random() < 0.6 ? rwHerLane(state) : (Math.random() < 0.5 ? 0 : 1);
+      var pk = rwSpawnProjectile(state, boss.x, boss.y + (boss.radius || 60) * 0.3, lnO,
+        rwCfg(state, "bossProjectileTravelSec", 1.2), c.bossOffspringSize != null ? c.bossOffspringSize : 0.42,
+        rwCfg(state, "bossProjectileShootable", true) !== false, "proj");
+      if (pk) pk.bossOffspring = true;
+      return;
+    }
     var kid = spawnBrain(state, {
       tiny: true,
       kind: "tiny",
@@ -1809,6 +1859,7 @@
         updateTunnelLaneBrain(state, brain, dt);
         continue;
       }
+      if (brain.doomCtl) { updateDoomBrain(state, brain, dt); continue; } // sega52 doom
       if (brain.rwProj) { updateRwProjectile(state, brain, dt); continue; } // sega51
       if (brain.rwCtl) { brain.telegraph = 0; continue; } // sega51: boss positioned by rwChoreo
       brain.bobPhase += dt * 2.4;
@@ -1921,6 +1972,39 @@
     updateLightning(state, dt);
   }
 
+  // sega52: boss purple halo — pre-rendered once into a small canvas, drawn with a gently pulsing alpha
+  var _bossHalo = null, _bossHaloKey = "";
+  function bossHaloCanvas(color) {
+    if (_bossHalo && _bossHaloKey === color) return _bossHalo;
+    if (typeof document === "undefined") return null;
+    var cv = document.createElement("canvas"); cv.width = cv.height = 128;
+    var g = cv.getContext("2d"), gr = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+    gr.addColorStop(0, color); gr.addColorStop(0.45, color); gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.globalAlpha = 1; g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    // fade the colour stops toward transparent (radial falloff)
+    var g2 = g.createRadialGradient(64, 64, 20, 64, 64, 64);
+    g2.addColorStop(0, "rgba(0,0,0,0)"); g2.addColorStop(1, "rgba(0,0,0,1)");
+    g.globalCompositeOperation = "destination-out"; g.fillStyle = g2; g.fillRect(0, 0, 128, 128);
+    _bossHalo = cv; _bossHaloKey = color;
+    return cv;
+  }
+  function drawBossHalo(ctx, state, brain, x, y, r, throbScale, fadeA) {
+    var c = state.config || {};
+    if (c.bossGlowOn === false) return;
+    var cv = bossHaloCanvas(c.bossGlowColor || "#b04dff");
+    if (!cv) return;
+    var pulse = Math.max(0.3, c.bossGlowPulseSec != null ? c.bossGlowPulseSec : 2.4);
+    var now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    var k = 0.75 + 0.25 * Math.sin(now * Math.PI * 2 / pulse);
+    var a = (c.bossGlowAlpha != null ? c.bossGlowAlpha : 0.35) * k * fadeA;
+    if (a <= 0.01) return;
+    var s = r * (c.bossGlowSizeMult != null ? c.bossGlowSizeMult : 3.4) * throbScale;
+    var ga = ctx.globalAlpha;
+    ctx.globalAlpha = a;
+    ctx.drawImage(cv, x - s / 2, y - s / 2, s, s);
+    ctx.globalAlpha = ga;
+  }
+
   function drawBrain(ctx, state, brain) {
     var x = brain.x;
     var y = brain.y;
@@ -1947,6 +2031,7 @@
     ctx.save();
     var fadeA = brain.fadeAlpha != null ? Math.max(0, Math.min(1, brain.fadeAlpha)) : 1; // sega43
     ctx.globalAlpha = fadeA;
+    if (brain.isBoss && !brain.bossDying) drawBossHalo(ctx, state, brain, x, y, r, throbScale, fadeA); // sega52
 
     ctx.beginPath();
     ctx.arc(x, y, r * 1.45 * throbScale, 0, Math.PI * 2);
@@ -2199,6 +2284,7 @@
 
   ns.Brains = {
     approachNoBrainsActive: approachNoBrainsActive,
+    startBossDoom: startBossDoom,
     fireUnavoidableZap: fireUnavoidableZap,
     reset: resetBrains,
     update: updateBrains,

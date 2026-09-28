@@ -198,6 +198,7 @@
     state.bossDefeatExplodeAcc = 0;
     state.bossDefeatReason = null;
     state.failHumanityBanner = null;
+    state.bossDoom = false; state._bossDoomT = 0; state._landY0 = null; state._tunnelEnterY0 = null; // sega52
     state.corpses = [];
     state.pickups = [];
     state.corpseSpawnTimer = 0;

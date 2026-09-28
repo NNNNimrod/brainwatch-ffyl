@@ -1241,6 +1241,21 @@
       if (ns.Sega31 && ns.Sega31.updateBossZapStorm) {
         ns.Sega31.updateBossZapStorm(state, dt, t);
       }
+      // sega52: doom — bossDoomLeadSec before "You've got the power" (deadline 215.96) every brain attacks at once
+      var cD = state.config || {};
+      var doomAt = deadline - (cD.bossDoomLeadSec != null ? cD.bossDoomLeadSec : 5.0);
+      if (cD.bossDoomOn !== false && !bossDying && !state.bossDefeatBeat && !state.finaleWon) {
+        if (!state.bossDoom && t >= doomAt && ns.Brains && ns.Brains.startBossDoom) ns.Brains.startBossDoom(state);
+        if (state.bossDoom) {
+          state._bossDoomT = (state._bossDoomT || 0) + dt;
+          if (state._bossDoomT >= (cD.bossDoomAttackSec != null ? cD.bossDoomAttackSec : 1.2)) {
+            state.deathFlashTimer = 0; state.invulnTimer = 0;
+            if (ns.Gameplay && ns.Gameplay.startBossDefeatBeat) ns.Gameplay.startBossDefeatBeat(state, "doom");
+            else beginFinaleLoseStoryboard(state, t);
+          }
+          return;
+        }
+      }
       if (t >= deadline && !bossDying) {
         // sega26: defeat beat (no seek) then lose storyboards on real song clock
         if (ns.Gameplay && ns.Gameplay.startBossDefeatBeat) {

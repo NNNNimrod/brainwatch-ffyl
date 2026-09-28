@@ -62,7 +62,7 @@
     state.globalZapLock = null;
     state.lightningBolts = [];
     state.shots = [];
-    state.failHumanityBanner = "YOU FAILED HUMANITY";
+    state.failHumanityBanner = (state.config && state.config.bossDoomText) || "YOU FAILED HUMANITY";
     var n;
     if (state.brains) {
       for (n = 0; n < state.brains.length; n++) {
@@ -70,7 +70,7 @@
         state.brains[n].defeatExpand = state.brains[n].defeatExpand || 1;
       }
     }
-    setEvent(state, "YOU FAILED HUMANITY");
+    setEvent(state, state.failHumanityBanner);
     // Opening burst on the player — sega27: random scale 50%–200%
     var bi;
     var px;
@@ -227,6 +227,13 @@
         ns.Fx.spawnExplosion(state, px, py, "sega", 0.55 + Math.random() * 1.4);
       }
     }
+    // sega52: bossRespawnNormal — dying in the boss fight uses the normal death flash + respawn; the fight
+    // keeps running in whatever phase it is in. The doom (bossDoomLeadSec before the deadline) is the only loss.
+    var cfgRs = state.config || {};
+    if ((state.finaleMode === "fight" || state.finaleFight) && cfgRs.bossRespawnNormal !== false && !state.bossDoom) {
+      setEvent(state, "DEATH ×" + state.deaths + " · −" + powerPenalty + " POWER");
+      return;
+    }
     // sega26: boss fight death → defeat beat (no audio seek) → lose storyboards
     if (state.finaleMode === "fight" || state.finaleFight) {
       state.deathFlashTimer = 0;
@@ -251,7 +258,8 @@
       state.deathFlashTimer = 0;
       // Respawn at ~respawnDisplayMph (default 69 SPD) with full integrity + fresh accel curve
       state.health = state.config.maxHealth;
-      state.speed = respawnRoadSpeed(state);
+      // sega52: in the boss fight keep the boss-level crawl (sections sets it each frame) instead of road speed
+      if (!(state.finaleMode === "fight" || state.finaleFight)) state.speed = respawnRoadSpeed(state);
       state.accelSpawnBoost = 1; // mark spawn; elapsed decay offset below
       state.accelSpawnElapsed0 = state.elapsed;
       state.invulnTimer = Math.max(state.invulnTimer, 2.0);
@@ -693,7 +701,11 @@
     if (state.trafficAdjustCooldown <= 0) {
       if (state.sectionTraffic === false) {
         // brains-only / no-wreck windows — drain obstacles
-        if (state.cars && state.cars.length) {
+        // sega52: keep the 3 tutorial cars driving (5-8 s is sectionTraffic=false). Draining them here made them
+        // coast to a stop and get deleted on screen at coastT>8 (~13-15 s, "she's got nothing").
+        var keepTut = state.config && state.config.carKeepTutorialCars !== false &&
+          state.sectionId === "tutorial" && state._tutorialCarsSpawned;
+        if (state.cars && state.cars.length && !keepTut) {
           ns.Sections && ns.Sections.clearTraffic && ns.Sections.clearTraffic(state);
         }
       } else {

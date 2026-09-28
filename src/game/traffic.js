@@ -96,7 +96,80 @@
     return rel < ahead || rel > tl - behind;
   }
 
-  function spawnCar(state) {
+  // sega52: cars ahead of the player inside the draw distance (what's actually on the road)
+  function countAhead(state) {
+    var L = state.segmentLength || 200, tl = state.trackLength, n, r, cnt = 0;
+    var pz = Util.increase(state.position || 0, state.playerZ || 0, tl), lim = (state.drawDistance || 300) * L;
+    for (n = 0; n < state.cars.length; n++) {
+      if (state.cars[n].coasting) continue;
+      r = ((state.cars[n].z - pz) % tl + tl) % tl;
+      if (r < lim) cnt++;
+    }
+    return cnt;
+  }
+
+  // sega52: carFeedFromHorizon — when fewer than carMinVisibleAhead cars are on the road ahead, put one at the
+  // horizon moving slower than her, so it drives in from the horizon (sega51 banned mid-road spawns; the
+  // off-screen density cars could take 10+ s to show up, leaving the road empty).
+  function feedFromHorizon(state) {
+    var c = state.config || {};
+    if (c.carFeedFromHorizon === false || state._spawnCarsFromHorizon || state.postBossCars) return;
+    var need = Math.max(0, (c.carMinVisibleAhead != null ? c.carMinVisibleAhead : 3) - countAhead(state));
+    need = Math.min(need, c.carFeedPerTick != null ? c.carFeedPerTick : 1);
+    var L = state.segmentLength, tl = state.trackLength, dd = state.drawDistance || 300;
+    var hzF = Math.max(0.5, Math.min(1, c.carSpawnHorizonFrac != null ? c.carSpawnHorizonFrac : 0.95));
+    var pz = Util.increase(state.position || 0, state.playerZ || 0, tl);
+    var minDist = L * (state._trafficMinDistSeg != null ? state._trafficMinDistSeg : 12);
+    var fMin = c.carFeedSpeedFracMin != null ? c.carFeedSpeedFracMin : 0.45;
+    var fMax = c.carFeedSpeedFracMax != null ? c.carFeedSpeedFracMax : 0.8;
+    var k, a, lane, z, ok, car, far, farR, n, r, seg;
+    for (k = 0; k < need; k++) {
+      ok = false;
+      for (a = 0; a < 12 && !ok; a++) {
+        lane = Math.random() < 0.5 ? 0 : 1;
+        z = Util.increase(pz, Math.floor(dd * (hzF - 0.05 + Math.random() * 0.05)) * L, tl);
+        z = Math.floor(z / L) * L;
+        ok = zoneClear(state, z, lane, minDist);
+      }
+      if (!ok) return;
+      // recycle the farthest off-screen car when at the density target, else add one
+      car = null;
+      if (state.cars.length >= trafficTarget(state)) {
+        far = -1; farR = -1;
+        for (n = 0; n < state.cars.length; n++) {
+          if (state.cars[n].coasting || state.cars[n].tutorial) continue;
+          r = ((state.cars[n].z - pz) % tl + tl) % tl;
+          if (carInVisibleWindow(state, state.cars[n].z, 1)) continue;
+          r = Math.min(r, tl - r);
+          if (r > farR) { farR = r; far = n; }
+        }
+        if (far >= 0) {
+          car = state.cars[far];
+          seg = ns.Track.findSegment(state, car.z);
+          var si = seg.cars.indexOf(car); if (si >= 0) seg.cars.splice(si, 1);
+          state.cars.splice(far, 1);
+        }
+      }
+      if (!car) {
+        var before = state.cars.length;
+        spawnCar(state, true);
+        if (state.cars.length <= before) return;
+        car = state.cars.pop();
+        seg = ns.Track.findSegment(state, car.z);
+        var sj = seg.cars.indexOf(car); if (sj >= 0) seg.cars.splice(sj, 1);
+      }
+      car.z = z; car.lane = lane; car.percent = 0; car.lastRelativeZ = null;
+      car.offset = state.config.laneOffsets[lane] + (Math.random() - 0.5) * 0.06;
+      var ps = state.speed || 0;
+      car.speed = ps > 1500 ? ps * (fMin + Math.random() * (fMax - fMin)) : randomTrafficSpeed(state, car.sprite);
+      car._fed = true;
+      ns.Track.findSegment(state, car.z).cars.push(car);
+      state.cars.push(car);
+      state._carFeedCount = (state._carFeedCount || 0) + 1;
+    }
+  }
+
+  function spawnCar(state, anyZ) {
     var attempts = 0;
     var lane, offset, z, sprite, car, segment, ok;
     var minDist = state.segmentLength * (state._trafficMinDistSeg != null ? state._trafficMinDistSeg : 12);
@@ -120,7 +193,7 @@
         z = Math.floor(Math.random() * state.segments.length) * state.segmentLength;
         // sega51: never place a density car inside the visible stretch of road (just behind the player
         // up to the horizon) — it would pop in mid-road. Off-screen cars drive in from the horizon.
-        if (atHorizon && carInVisibleWindow(state, z, hzFrac)) continue;
+        if (atHorizon && !anyZ && carInVisibleWindow(state, z, hzFrac)) continue;
       }
       if (!zoneClear(state, z, lane, minDist)) {
         continue;
@@ -201,6 +274,8 @@
     }
     var target = trafficTarget(state);
     var missing = target - state.cars.length;
+    feedFromHorizon(state); // sega52
+    missing = target - state.cars.length;
 
     if (missing > 0) {
       for (n = 0; n < missing; n++) {
@@ -332,7 +407,10 @@
         if (relative > state.trackLength / 2) relative -= state.trackLength;
         if (relative < -state.trackLength / 2) relative += state.trackLength;
         // remove once player has passed (behind) or after long coast
-        if (relative < -state.segmentLength * 3 || car.coastT > 8) {
+        // sega52: coastRemoveOnlyOffscreen — the 8 s timeout no longer deletes a car that is still on screen
+        var coastOnScreen = state.config && state.config.coastRemoveOnlyOffscreen !== false &&
+          relative >= -state.segmentLength * 3 && relative < (state.drawDistance || 300) * state.segmentLength && car.coastT < 30;
+        if (relative < -state.segmentLength * 3 || (car.coastT > 8 && !coastOnScreen)) {
           removeCar(state, n);
         }
         continue;

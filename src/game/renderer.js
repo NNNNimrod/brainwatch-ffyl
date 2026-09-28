@@ -454,6 +454,36 @@
       k = smoothstep01(k);
       return [{ img: A, a: 1, key: keys[0] }, { img: B, a: k, key: keys[1] }];
     }
+    // sega52: song-timed pre-nuke timeline (running only): long dusk-clean -> violet crossfade (40.2-58.58),
+    // violet held to the chorus, violet -> night greenbelt (59-64), greenbelt pinned until inside the tunnel.
+    // Early returns reset _bgMixState so the normal section logic snaps (no stale 1.5 s blend) afterwards.
+    if (state.phase === "running") {
+      var tl = null;
+      var hcOn = c.bgHoldingCrossfadeOn === true;
+      var hcS = c.bgHoldingCrossfadeStart != null ? c.bgHoldingCrossfadeStart : 40.2;
+      var hcE = c.bgHoldingCrossfadeEnd != null ? c.bgHoldingCrossfadeEnd : 58.58;
+      var gbOn = c.greenbeltPlateOn === true && !!stripImg(state, "greenbelt");
+      var gbS = c.greenbeltFadeStart != null ? c.greenbeltFadeStart : 59.0;
+      var gbD = Math.max(0.05, c.greenbeltFadeSec != null ? c.greenbeltFadeSec : 5.0);
+      var gbUntil = c.greenbeltPinUntilSec != null ? c.greenbeltPinUntilSec : 92.0;
+      var vFrom = stripImg(state, c.bgHoldingCrossfadeFrom || "dusk-clean");
+      var vTo = stripImg(state, c.bgHoldingCrossfadeTo || "violet");
+      if (hcOn && t >= hcS && t < hcE && vFrom) {
+        var hk = (t - hcS) / Math.max(0.05, hcE - hcS);
+        hk = c.bgHoldingCrossfadeEase === "linear" ? Math.max(0, Math.min(1, hk)) : smoothstep01(hk);
+        tl = vTo ? [{ img: vFrom, a: 1, key: c.bgHoldingCrossfadeFrom || "dusk-clean" }, { img: vTo, a: hk, key: c.bgHoldingCrossfadeTo || "violet" }]
+          : [{ img: vFrom, a: 1, key: c.bgHoldingCrossfadeFrom || "dusk-clean" }];
+      } else if (hcOn && vTo && t >= hcE && t < gbS) {
+        tl = [{ img: vTo, a: 1, key: c.bgHoldingCrossfadeTo || "violet" }];
+      } else if (gbOn && t >= gbS && t < gbUntil) {
+        var gImg = stripImg(state, "greenbelt");
+        var vImg = stripImg(state, "violet") || vTo;
+        var gk = smoothstep01((t - gbS) / gbD);
+        tl = (vImg && gk < 1) ? [{ img: vImg, a: 1, key: "violet" }, { img: gImg, a: gk, key: "greenbelt" }]
+          : [{ img: gImg, a: 1, key: "greenbelt" }];
+      }
+      if (tl) { if (state._bgMixState) state._bgMixState.img = null; return tl; }
+    }
     var key = state.austinBgPlate || (c.austinBgFastStripCritical || ["dusk-clean"])[0];
     if (PRE_NUKE_KEYS.indexOf(key) < 0) key = "dusk-clean"; // fiery / legacy never pre-nuke
     var pick = nearestLoadedStrip(state, key, false);
@@ -607,6 +637,7 @@
     var m = (state.config && state.config.skylineMask) || {};
     if (key === "dusk" || key === "ember") return m.dusk || null;
     if (key === "acid") return m.acid || null;
+    if (key === "greenbelt") return m.greenbelt || m.clean || null; // sega52
     return m.clean || null;
   }
 
@@ -632,6 +663,17 @@
     ctx.scale(zsc, zsc);
     ctx.translate(-width / 2, -anchorY);
     var baseA = ctx.globalAlpha;
+    // sega52: startBgFadeInSec — Austin plate fades in from black over the first N s of the run (smoothstep)
+    var sfSec = cfgPz.startBgFadeInSec != null ? cfgPz.startBgFadeInSec : 0;
+    if (sfSec > 0 && state.phase === "running" && !state.postNukeFire) {
+      var sfT = state.songClock != null ? state.songClock : 0;
+      if (sfT < sfSec) {
+        var sfU = Math.max(0, sfT / sfSec), sfK = sfU * sfU * (3 - 2 * sfU);
+        ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = "#000"; ctx.fillRect(0, 0, width, height); ctx.restore(); // fade from black, not the sky gradient
+        baseA *= sfK;
+      }
+    }
+    state._startBgFadeK = baseA;
     for (i = 0; i < mix.length; i++) {
       if (!(mix[i].a > 0.003)) continue;
       ctx.globalAlpha = baseA * Math.min(1, mix[i].a);
@@ -1676,7 +1718,9 @@ function renderWorld(state) {
         // sega31d: screen rect for tap-shoot cars (tier3)
         // sega31s: +20% W / +15% H
         var approxW = Math.max(28, (sprite.w || 80) * spriteScale * state.roadWidth * width * 0.00035 * carWMult);
-        var approxH = Math.max(20, (sprite.h || 56) * spriteScale * state.roadWidth * width * 0.00035 * carHMult);
+        // sega52: carScaleY — every car drawn 12% taller (width unchanged), anchored at the wheels
+        var carSY = (state.config.carScaleY != null) ? state.config.carScaleY : 1;
+        var approxH = Math.max(20, (sprite.h || 56) * spriteScale * state.roadWidth * width * 0.00035 * carHMult * carSY);
         car.screenRect = {
           x: spriteX - approxW / 2,
           y: spriteY - approxH,
@@ -1684,10 +1728,12 @@ function renderWorld(state) {
           h: approxH
         };
         if (Render.spriteNeonCar) {
+          if (carSY !== 1) { ctx.save(); ctx.translate(spriteX, spriteY); ctx.scale(1, carSY); ctx.translate(-spriteX, -spriteY); }
           Render.spriteNeonCar(
             ctx, width, height, state.resolution, state.roadWidth, state.sprites,
             sprite, spriteScale, spriteX, spriteY, -0.5, -1, segment.clip, bank
           );
+          if (carSY !== 1) ctx.restore();
         } else {
           ctx.save();
           if (bank) {
@@ -1696,9 +1742,9 @@ function renderWorld(state) {
             ctx.translate(-spriteX, -spriteY);
           }
           // sega31s: apply W/H mult via non-uniform scale about feet/center
-          if (carWMult !== 1 || carHMult !== 1) {
+          if (carWMult !== 1 || carHMult !== 1 || carSY !== 1) {
             ctx.translate(spriteX, spriteY);
-            ctx.scale(carWMult, carHMult);
+            ctx.scale(carWMult, carHMult * carSY);
             ctx.translate(-spriteX, -spriteY);
           }
           Render.sprite(
@@ -2188,7 +2234,17 @@ function renderWorld(state) {
       var uAim = Math.max(state._tunnelPlayerShrink || 0, state._tunnelExitShrink || 0);
       playerDrawXBase = playerDrawXBase + (mr.cx - playerDrawXBase) * uAim * 0.35;
       destY = destY + (mr.cy - destY) * uAim * 0.55;
+      // sega52: tunnelEnterFromCurrentAlt — start the mouth shrink-in from where she was actually drawn
+      // (her altitude) and ease into the same end point; old path snapped ~220 px down to the road first.
+      var cfgTe = state.config || {};
+      if (cfgTe.tunnelEnterFromCurrentAlt !== false && state._tunnelPlayerShrink > 0.001 && !(state._tunnelExitShrink > 0.001)) {
+        if (state._tunnelEnterY0 == null) state._tunnelEnterY0 = state._playerDrawDestY != null ? state._playerDrawDestY : destY;
+        var uTe = Math.min(1, state._tunnelPlayerShrink), eTe = uTe * uTe * (3 - 2 * uTe);
+        // hold her altitude until the mouth path rises above her, then follow it (never dips toward the road)
+        destY = state._tunnelEnterY0 + Math.min(0, destY - state._tunnelEnterY0) * eTe;
+      }
     }
+    if (!(state._tunnelPlayerShrink > 0.001)) state._tunnelEnterY0 = null;
     // sega31n: apply elev Y during winCruise BEFORE centerY/horizon blend (no ground snap)
     // sega35: skip re-blend while tunnel shrink aims toward mouth (would fight OffY)
     var tunnelShrinking = (state._tunnelPlayerShrink > 0.001) || (state._tunnelExitShrink > 0.001) || (exitConv != null);
@@ -2231,6 +2287,10 @@ function renderWorld(state) {
       var steerAmt = state.speed * drawPlayerNow.steerLean * 0.35;
       // sega45 D: tunnel path — lean only during the lane move (road may be frozen → speed-independent)
       if (drawPlayerNow.tunnelForced) steerAmt = drawPlayerNow.steerLean;
+      // sega52: bossLaneLeanNormal — the boss level runs at speed 0 / crawl, which zeroed steerAmt and froze her on the
+      // STRAIGHT frame. Use the same lane-side LEFT/RIGHT poses as normal play whenever the road speed is (near) zero.
+      if (cfgP.bossLaneLeanNormal !== false && !drawPlayerNow.tunnelForced && Math.abs(steerAmt) < 1 &&
+          (state.finaleFight || state.finaleMode === "fight" || state.bossApproach)) steerAmt = drawPlayerNow.steerLean;
       var zapShakeMult = (cfgP.zapHitShakeMult != null) ? cfgP.zapHitShakeMult : 1;
       if ((cfgP.zapHitShakeLeftRight !== false) && state.shockFlash > 0) {
         var tick = (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -2266,11 +2326,23 @@ function renderWorld(state) {
           var shrinkAmt = cfgP.playerShadowShrinkAmount != null
             ? cfgP.playerShadowShrinkAmount
             : (1 - shMin);
+          // sega52: shadowAltShrink (overrides playerShadowShrinkAmount when set) + shadowAltFade
+          if (cfgP.shadowAltShrink != null) shrinkAmt = cfgP.shadowAltShrink;
+          if (cfgP.shadowAltFade != null) shA *= Math.max(0, 1 - elevProg * cfgP.shadowAltFade);
           shElevScale = 1 - elevProg * shrinkAmt;
           if (shMin > 0) shElevScale = Math.max(shMin, shElevScale);
           if (cfgP.playerShadowFullAtGround !== false && elevProg <= 0) shElevScale = 1;
         }
-        if (shElevScale > 0.001) {
+        // sega52: shadowFollowDepth — when she moves into depth (tunnel shrink-in / exit shrink), the shadow
+        // moves up with her and scales by the same factor, keeping the same (scaled) gap under her feet.
+        if (cfgP.shadowFollowDepth !== false && tunnelScale < 0.999 && state.finaleMode !== "winCruise") {
+          var elevYd = height * (state.playerElevScreenY != null ? state.playerElevScreenY : 0.99);
+          shY = destY + (shY - elevYd) * tunnelScale;
+          shElevScale *= tunnelScale;
+        }
+        var shHideT = cfgP.shadowHideInTunnel !== false && (state.inTunnel || state._tunnelHideRoad ||
+          state._tunnelPhase === "blackIn" || state._tunnelPhase === "blackHold" || state._tunnelPhase === "blackOut");
+        if (shElevScale > 0.001 && !shHideT) {
           shRx *= shElevScale;
           shRy *= shElevScale;
           ctx.save();

@@ -842,7 +842,11 @@
     // sega48: city -> black starfield (fade starfieldFadeStart..+dur), starfield alone until the mouth;
     // mouth then fades in over the stars; stars gone once inside (hideRoad) / after exit.
     state._starfieldA = 0;
-    if (c.starfieldEnabled !== false && c.starfieldFadeStart != null && !state.inTunnel && !hideRoad &&
+    // sega52: greenbeltReplacesStarfield - the night greenbelt has its own stars; no city->starfield fade,
+    // the greenbelt crossfades straight into the portal mouth (city alpha = 1 - mouth fade above).
+    var gbNoStars = c.greenbeltReplacesStarfield === true && c.greenbeltPlateOn === true &&
+      !!(state.austinStrips && state.austinStrips.greenbelt && state.austinStrips.greenbelt.width > 0);
+    if (!gbNoStars && c.starfieldEnabled !== false && c.starfieldFadeStart != null && !state.inTunnel && !hideRoad &&
         t >= c.starfieldFadeStart && t < whitePeak && phase !== 'done' && phase !== 'whiteDown' && phase !== 'roadWait') {
       var sfU = Math.max(0, Math.min(1, (t - c.starfieldFadeStart) / Math.max(0.05, c.starfieldFadeDur != null ? c.starfieldFadeDur : 1.5)));
       state._tunnelCityAlpha = Math.min(state._tunnelCityAlpha, 1 - sfU);
@@ -876,7 +880,13 @@
 
     // Force elev on approach / inside
     if (approaching && c.tunnelForceTier1OnEntranceVisible !== false) {
-      forceTunnelElev(state, 1);
+      if (c.tunnelEnterFromCurrentAlt !== false) {
+        // sega52: keep her current altitude through the mouth entrance (no forced drop to tier 1)
+        state.elevFloatHoldTimer = Math.max(state.elevFloatHoldTimer || 0, 0.5);
+        if (state.playerElevScreenY != null) state.elevTargetScreenY = state.playerElevScreenY;
+      } else {
+        forceTunnelElev(state, 1);
+      }
       state._tunnelForceElev2 = false;
     }
     if (inTunnel && c.tunnelForceElevTier2 !== false) {

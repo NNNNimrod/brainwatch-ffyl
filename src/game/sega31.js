@@ -749,7 +749,7 @@
     var startStorm = deadline - before; // ~212.96
     var interval = cfg(state).bossZapStormIntervalSec != null ? cfg(state).bossZapStormIntervalSec : 2.0;
 
-    if (state.finaleMode !== "fight" || state.finaleWon || state.finaleLost || state.bossDefeatBeat) {
+    if (state.finaleMode !== "fight" || state.finaleWon || state.finaleLost || state.bossDefeatBeat || state.bossDoom) {
       state.bossZapStorm = false;
       return;
     }
@@ -859,7 +859,10 @@
     var cfg = state && state.config ? state.config : (ns.CONFIG || {});
     var softOff = !cfg || cfg.cybercabSoftPrebakeDisabledForShip !== false;
     var mode = (cfg && cfg.cybercabColorMode) || "pixel";
-    var color = CYBERCAB_COLORS[Math.floor(Math.random() * CYBERCAB_COLORS.length)];
+    // sega52: carExcludeBlack — the black cab is too hard to see on the dark road
+    var colPool = (cfg && cfg.carExcludeBlack !== false)
+      ? CYBERCAB_COLORS.filter(function(cc) { return cc.id !== "black"; }) : CYBERCAB_COLORS;
+    var color = colPool[Math.floor(Math.random() * colPool.length)];
     var carName = null;
     if (baseSprite === SPRITES.CAR01) carName = "CAR01";
     else if (baseSprite === SPRITES.CAR02) carName = "CAR02";
@@ -913,7 +916,30 @@
     ];
   }
 
+  // sega52: bossLandFromCurrentY — smooth landing before the boss: ease her from the altitude she is actually
+  // drawn at to the ground over bossLandEaseSec (smoothstep; no snap, no fast exponential start).
+  function easeLandToGround(state, dt) {
+    var c = cfg(state);
+    var g = elevGroundScreenY(c);
+    if (state._landY0 == null) {
+      state._landY0 = state.playerElevScreenY != null ? state.playerElevScreenY : g;
+      state._landT = 0;
+    }
+    var sec = Math.max(0.2, c.bossLandEaseSec != null ? c.bossLandEaseSec : 1.6);
+    state._landT = (state._landT || 0) + dt;
+    var u = Math.min(1, state._landT / sec), e = u * u * (3 - 2 * u);
+    var y = state._landY0 + (g - state._landY0) * e;
+    state.elevFloatHoldTimer = 0;
+    applyContinuousElevTargets(state, y);
+    state.playerElevScreenY = y;
+    if (state.elevTargetScale != null) state.playerElevScale = state.elevTargetScale;
+    if (state.elevTargetCameraHeight != null) state.cameraHeight = state.elevTargetCameraHeight;
+    if (u >= 1) { state.elevTier = 1; state._landY0 = null; return true; }
+    return false;
+  }
+
   ns.Sega31 = {
+    easeLandToGround: easeLandToGround,
     CYBERCAB_COLORS: CYBERCAB_COLORS,
     ensureTrainer: ensureTrainer,
     trainerOn: trainerOn,
