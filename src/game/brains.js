@@ -493,6 +493,15 @@
       R.y0 = (boss.fadeAlpha > 0.05) ? boss.y : -(boss.radius || 60) * 2.4;
       go("rwDescendFinal"); ph = state.bossPhase;
     }
+    // boss shot down to 0 HP before the final phase: stop the phase chain, clear the adds, let the normal
+    // final-shot/death logic finish it where it is (it is visible in every phase it can be damaged in)
+    if (boss.hp <= 0 && ph !== "rwFinal") {
+      rwShrinkOut(state, function(b) { return b.rwMedium || b.rwProj; });
+      boss.rwCtl = false; boss.noFight = false; boss.noTap = false; boss.approach = 1; boss.postGrowDelay = 0;
+      boss.targetBaseY = null; boss.vx = 0; boss.fadeAlpha = 1;
+      go("rwFinal");
+      return;
+    }
     var sz;
     if (ph === "rwWait") {
       rwSetDraw(boss, w / 2, horizonY, 0.01, 0, dt); boss.noTap = true;
