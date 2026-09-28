@@ -858,6 +858,8 @@
           else if (id === "chorus2") label = cfg.sectionTitleLabelChorus2 || "CHORUS";
         }
         if (!label) return;
+        // sega51: showChorusTitles false = no title containing the word CHORUS (CHORUS / CHORUS 2 / FINAL CHORUS ...)
+        if (cfg.showChorusTitles !== true && /chorus/i.test(String(label))) return;
         var dur = cfg.sectionTitleDurationSec != null ? cfg.sectionTitleDurationSec : 3.0;
         var fade = cfg.sectionTitleFadeSec != null ? cfg.sectionTitleFadeSec : 0.5;
         state.sectionTitleText = String(label);

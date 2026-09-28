@@ -800,7 +800,7 @@
       if (phase === 'shrinkIn' && t >= svStart && t < blackInStart) {
         if (!state._svTitleActive) {
           state._svTitleActive = true;
-          state.sectionTitleText = String(c.secondVerseTitleText || "SECOND VERSE");
+          state.sectionTitleText = String(c.secondVerseTitleText || "VERSE 2");
           state.sectionTitleAge = Math.max(0, t - svStart);
           state.sectionTitleDuration = svSec - svFade; // fades out over the last svFade s, gone at blackInStart
           state.sectionTitleFade = svFade;
