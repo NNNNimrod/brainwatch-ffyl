@@ -232,16 +232,18 @@
     return c.mediumHp != null ? c.mediumHp : (c.normalHp != null ? c.normalHp : 100);
   }
 
-  // sega49: approachNoBrains — no brains of any kind from starfieldFadeStart (78 s) until the
+  // sega49: approachNoBrains — no brains of any kind from approachNoBrainsStart (78 s; sega50: decoupled
+  // from starfieldFadeStart, which moved to 76 s) until the
   // tunnel interior brains start (interiorStart = tunnelEnterSec + tunnelBlackHoldSec).
   function approachNoBrainsActive(state) {
     var c = state && state.config;
-    if (!c || c.approachNoBrains === false || c.starfieldFadeStart == null) return false;
+    if (!c || c.approachNoBrains === false) return false;
+    var nbStart = c.approachNoBrainsStart != null ? c.approachNoBrainsStart : 78.0;
     if (state.phase !== "running" || state.madMaxMode) return false;
     var t = state.songClock || 0;
     var interior = state._tunnelInteriorStart;
     if (!(interior > 0)) interior = (c.tunnelEnterSec != null ? c.tunnelEnterSec : 90.5) + Math.max(0, c.tunnelBlackHoldSec || 0);
-    return t >= c.starfieldFadeStart && t < interior;
+    return t >= nbStart && t < interior;
   }
 
   function clearApproachBrains(state) {
@@ -1545,7 +1547,7 @@
 
     ensureBrains(state, dt);
     if (approachNoBrainsActive(state)) clearApproachBrains(state); // sega49
-    else if (state._approachBrainsCleared && (state.songClock || 0) < ((state.config.starfieldFadeStart || 78) - 1)) state._approachBrainsCleared = false;
+    else if (state._approachBrainsCleared && (state.songClock || 0) < ((state.config.approachNoBrainsStart != null ? state.config.approachNoBrainsStart : 78) - 1)) state._approachBrainsCleared = false;
     updateBossOffspring(state, dt); // sega45
     updateMediumGestation(state, dt);
     updateBossChoreography(state, dt);

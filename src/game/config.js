@@ -29,7 +29,8 @@
     approachLaneOffsetScale: 0.3,  // lanes pulled toward road centre while straight (camera ~on axis, no side lurch)
     approachCenterEase: 1.0,       // camera-centring weight eases in/out over this many sec
     tunnelApproachMaxOffsetFrac: 0.12, // her on-screen offset from centre capped (via camera weight) on approach
-    starfieldEnabled: true, starfieldFadeStart: 78.0, starfieldFadeDur: 1.5, starfieldHoldUntil: 84.5, // city -> black starfield before the mouth
+    starfieldEnabled: true, starfieldFadeStart: 76.0, starfieldFadeDur: 3.5, starfieldHoldUntil: 84.5, // sega50: was 78.0 / 1.5; // city -> black starfield before the mouth
+    approachNoBrainsStart: 78.0, // sega50: no-brains window start, decoupled from starfieldFadeStart
     approachNoBrains: true, // sega49: no brains of any kind from starfieldFadeStart until tunnel interior brains start; on-screen ones shrink out at 78 s
     tunnelExitConverge: true, tunnelExitTargetX: 0.5, tunnelExitTargetY: 0.48, tunnelExitEase: "easeInOutCubic", // exit shrinks into the VP
     lightningPrebake: true, lightningMaxBolts: 4, lightningBranchDepth: 2, lightningReuseFrames: 3, lightningNoShadowBlur: true,
