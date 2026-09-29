@@ -1006,7 +1006,19 @@
     duskCleanCapitolFix: true,
     greenbeltPlatePath: "images/bg-austin-new/fast/background-greenbelt-night-v3.jpg",
     tunnelPortalPath: "images/fx/tunnel-portal-v2.png",
-    greenbeltPinUntilSec: 92.0
+    greenbeltPinUntilSec: 92.0,
+    // ===== sega53 baked from editor (2026-09-28 CT) =====
+    showDebugLabels: false,
+    showEventFeed: false,
+    showMeterLabels: true,
+    curveLeanOn: true,
+    curveLeanThresholdDeg: 25,
+    curveLeanHysteresisDeg: 3,
+    curveLeanEaseSec: 0.25,
+    curveLeanAmount: 1.0,
+    curveLeanTiltDeg: 6,
+    curveLeanLookSegs: 120,
+    curveLeanLaneEps: 0.03
   };
 
   var keyMap = {

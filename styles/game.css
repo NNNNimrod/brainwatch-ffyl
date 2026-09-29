@@ -1342,3 +1342,6 @@ button {
 .finale-fx.no-blood .finale-blood { display: none !important; }
 .death-flash.no-blood { background: transparent; }
 .overlay.no-hack, .finale-fx.no-hack { filter: none; }
+
+/* sega53: showMeterLabels false hides the HEALTH / POWER meter text */
+.app-shell.no-meter-labels .meter-label { display: none !important; }

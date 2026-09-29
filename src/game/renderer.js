@@ -1587,6 +1587,10 @@ function renderWorld(state) {
     state._camCenterK = camCenterK;
     var roadRows = state._roadRows || (state._roadRows = []);
     roadRows.length = 0;
+    // sega53: curve lean measurement window (player segment -> curveLeanLookSegs ahead)
+    var clLook = Math.max(2, (state.config && state.config.curveLeanLookSegs) || 120);
+    var clRefN = ((playerSegment.index - baseSegment.index) % state.segments.length + state.segments.length) % state.segments.length;
+    var clX0 = null, clY0 = null, clX1 = null, clY1 = null;
     for (n = 0; n < state.drawDistance; n++) {
       if (skipRoadSega31x || (ns.Sega31x && ns.Sega31x.shouldSkipRoad && ns.Sega31x.shouldSkipRoad(state))) {
         break;
@@ -1618,6 +1622,12 @@ function renderWorld(state) {
         state.roadWidth
       );
 
+      // sega53: curve lean - screen-space bend caused by curvature only (x = accumulated curve offset, camera units)
+      if (n === clRefN || n === clRefN + clLook) {
+        var clSx = (segment.p1.screen.scale || 0) * x * width / 2;
+        if (n === clRefN) { clX0 = clSx; clY0 = segment.p1.screen.y; }
+        else { clX1 = clSx; clY1 = segment.p1.screen.y; }
+      }
       x = x + dx;
       dx = dx + segment.curve;
       // sega45: near road rows (screen y → centre x / half width) for her projected lane X
@@ -1810,6 +1820,9 @@ function renderWorld(state) {
       }
     }
 
+    // sega53: road bend angle in degrees (+ = bends right). atan(curve-only lateral screen shift / screen rows) over the window.
+    state._curveAngleDeg = (clX0 != null && clX1 != null && clY0 - clY1 > 1)
+      ? Math.atan2(clX1 - clX0, clY0 - clY1) * 180 / Math.PI : 0;
     ctx.restore();
 
     // sega31k: defer player draw until after brains (z-order: player in front)
@@ -2291,6 +2304,35 @@ function renderWorld(state) {
       // STRAIGHT frame. Use the same lane-side LEFT/RIGHT poses as normal play whenever the road speed is (near) zero.
       if (cfgP.bossLaneLeanNormal !== false && !drawPlayerNow.tunnelForced && Math.abs(steerAmt) < 1 &&
           (state.finaleFight || state.finaleMode === "fight" || state.bossApproach)) steerAmt = drawPlayerNow.steerLean;
+      // sega53: curveLean - on a bend steeper than curveLeanThresholdDeg she leans into the road's direction (pose + small tilt),
+      // eased over curveLeanEaseSec with hysteresis. A lane switch in progress keeps the lane-switch lean (curve lean eases out).
+      var clTilt = 0;
+      if (cfgP.curveLeanOn !== false) {
+        var clNow = (typeof performance !== "undefined" ? performance.now() : Date.now());
+        var clDt = state._clLastT ? Math.min(0.1, Math.max(0, (clNow - state._clLastT) / 1000)) : 0;
+        state._clLastT = clNow;
+        var clThr = cfgP.curveLeanThresholdDeg != null ? cfgP.curveLeanThresholdDeg : 25;
+        var clHys = cfgP.curveLeanHysteresisDeg != null ? cfgP.curveLeanHysteresisDeg : 3;
+        var clAng = state._curveAngleDeg || 0;
+        var laneTgtX = (ns.State && ns.State.laneOffset) ? ns.State.laneOffset(state, state.lane || 0) : state.playerX;
+        var switching = Math.abs((state.playerX || 0) - laneTgtX) > (cfgP.curveLeanLaneEps != null ? cfgP.curveLeanLaneEps : 0.03);
+        var clAllowed = state.phase === "running" && !drawPlayerNow.tunnelForced && !state.inTunnel && !(state._tunnelPhase && state._tunnelPhase !== "done") &&
+          !state.finaleFight && state.finaleMode !== "fight" && state.finaleMode !== "winCruise" && !state.bossApproach &&
+          state.speed > 1 && !switching;
+        var clSide = state._curveLeanSide || 0;
+        if (!clAllowed) clSide = 0;
+        else if (Math.abs(clAng) >= clThr) clSide = clAng > 0 ? 1 : -1;
+        else if (Math.abs(clAng) < clThr - clHys) clSide = 0;
+        state._curveLeanSide = clSide;
+        var clEase = Math.max(0.01, cfgP.curveLeanEaseSec != null ? cfgP.curveLeanEaseSec : 0.25);
+        var clK = state._curveLeanK || 0;
+        var clStep = clDt / clEase;
+        clK = clK < clSide ? Math.min(clSide, clK + clStep) : Math.max(clSide, clK - clStep);
+        state._curveLeanK = clK;
+        if (!switching && Math.abs(clK) >= 0.5) steerAmt = clK > 0 ? 1 : -1;
+        var clAmt = cfgP.curveLeanAmount != null ? cfgP.curveLeanAmount : 1;
+        clTilt = clK * clAmt * (cfgP.curveLeanTiltDeg != null ? cfgP.curveLeanTiltDeg : 6) * Math.PI / 180;
+      }
       var zapShakeMult = (cfgP.zapHitShakeMult != null) ? cfgP.zapHitShakeMult : 1;
       if ((cfgP.zapHitShakeLeftRight !== false) && state.shockFlash > 0) {
         var tick = (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -2358,6 +2400,7 @@ function renderWorld(state) {
           ctx.restore();
         }
       }
+      if (clTilt) { ctx.save(); ctx.translate(playerDrawX, destY); ctx.rotate(clTilt); ctx.translate(-playerDrawX, -destY); }
       Render.player(
         ctx, width, height, state.resolution, state.roadWidth, state.sprites,
         state.speed / state.maxSpeed,
@@ -2367,6 +2410,7 @@ function renderWorld(state) {
       );
       // sega31z: player-hit red-diff overlay (brain zap/damage) matching steer pose
       drawPlayerHitRedDiff(state, ctx, width, height, playerDrawX, destY, steerAmt, pScale, drawZ);
+      if (clTilt) ctx.restore();
     }
     ctx.restore();
     if (state.shockFlash > 0) {

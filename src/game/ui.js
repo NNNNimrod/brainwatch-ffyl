@@ -1302,6 +1302,12 @@
       refs.eventFeed.textContent = "";
       return;
     }
+    // sega53: showEventFeed (default off) - small status pills ("Run started", "BRAIN HIT!", "AVOID +10", "DEATH x1 ...")
+    if (!(state.config && state.config.showEventFeed === true)) {
+      refs.eventFeed.className = "event-feed";
+      refs.eventFeed.textContent = "";
+      return;
+    }
     // No LEVEL commentary / howto spills in the feed
     if (/^LEVEL\b/i.test(state.eventText) || /howto/i.test(state.eventText)) {
       refs.eventFeed.className = "event-feed";
@@ -1367,10 +1373,15 @@
       refs.appShell.classList.toggle("playing", !!inPlay);
       refs.appShell.setAttribute("data-bg", state.bgStyle || "dusk");
     }
+    // sega53: showDebugLabels (default off) - the top-left background-plate chip (DUSK / VIOLET ...) is a debug readout
+    var cfgDbg = state.config || {};
+    var showDbg = cfgDbg.showDebugLabels === true;
     if (refs.bgChip) {
-      refs.bgChip.textContent = (state.bgStyle || "dusk").toUpperCase();
-      refs.bgChip.classList.toggle("hidden", !inPlay && state.phase !== "countdown");
+      if (showDbg) refs.bgChip.textContent = (state.bgStyle || "dusk").toUpperCase();
+      refs.bgChip.classList.toggle("hidden", !showDbg || (!inPlay && state.phase !== "countdown"));
     }
+    // sega53: showMeterLabels (default on) - HEALTH / POWER text on the two meters
+    if (refs.appShell) refs.appShell.classList.toggle("no-meter-labels", cfgDbg.showMeterLabels === false);
     renderBottomControls(state);
     renderFinaleFx(state);
     // HUD SPD: internal * (222/140), clamp 333 (or 666 in Mad Max)
