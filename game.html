@@ -10,12 +10,11 @@
   <meta name="theme-color" content="#0a0508">
   <link rel="icon" href="data:,">
   <title>BRAIN WATCH — Fight For Your Life (Sega Pixel) · city</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- sega47: Google Font is NON-render-blocking (a slow/hung fonts.googleapis.com request used to block every
-       script on iPhone → stuck on LOADING forever). Falls back to the system font until it arrives. -->
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="styles/game.css?v=sega53">
+  <!-- sega54: retro pixel fonts are SELF-HOSTED (fonts/, SIL OFL) — no Google Fonts request any more -->
+  <link rel="preload" href="fonts/PressStart2P-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="styles/game.css?v=sega54">
+  <link rel="stylesheet" href="styles/pixel-fonts.css?v=sega54">
 </head>
 <body>
   <main class="app-shell" id="app">
@@ -74,7 +73,7 @@
 
       <div id="phaseOverlay" class="overlay">
         <div class="overlay-card menu-title" id="overlayCard">
-          <img id="titleLogo" class="title-logo" src="images/title-brain-watch.jpg?v=sega53" alt="BRAIN WATCH" width="640" height="400" />
+          <img id="titleLogo" class="title-logo" src="images/title-brain-watch.jpg?v=sega54" alt="BRAIN WATCH" width="640" height="400" />
           <h2 id="overlayTitle">FIGHT FOR YOUR LIFE</h2>
           <button id="highScoresButton" class="secondary-btn" type="button">HIGH SCORES</button>
           <ol id="highScoreList" class="high-score-list hidden" aria-label="Top 3 high scores"></ol>
@@ -128,6 +127,7 @@
     <section id="lyrics" aria-live="polite">
       <div id="lyric-current" class="lyric-line current">&nbsp;</div>
       <div id="lyric-next" class="lyric-line next">&nbsp;</div>
+      <p id="photoCredit" class="photo-credit">Skyline photo: &ldquo;Evening Austin Skyline&rdquo; by Stuart Seeger, <a href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noopener">CC BY 2.0</a>, modified.</p>
     </section>
 
     <nav class="touch-controls hidden" id="laneControls" aria-label="Lane controls">
@@ -143,11 +143,11 @@
 
     <nav class="social-links" id="socialLinks" aria-label="BRAIN WATCH links">
       <a class="social-btn social-ig" href="https://www.instagram.com/brain.watch.band/" target="_blank" rel="noopener noreferrer">
-        <img src="images/icon-instagram.svg?v=sega53" alt="" width="28" height="28" />
+        <img src="images/icon-instagram.svg?v=sega54" alt="" width="28" height="28" />
         <span class="label">INSTAGRAM</span>
       </a>
       <a class="social-btn social-spotify" href="https://open.spotify.com/artist/7Bf3DViunl3JIsoKhhNIOE" target="_blank" rel="noopener noreferrer">
-        <img src="images/icon-spotify.svg?v=sega53" alt="" width="28" height="28" />
+        <img src="images/icon-spotify.svg?v=sega54" alt="" width="28" height="28" />
         <span class="label">SPOTIFY</span>
       </a>
     </nav>
@@ -210,22 +210,24 @@
     }, 500);
   })();
   </script>
-  <script src="common.js?v=sega53"></script>
-  <script src="src/game/lyrics.js?v=sega53"></script>
-  <script src="src/game/scenery.js?v=sega53"></script>
-  <script src="src/game/sections.js?v=sega53"></script>
-  <script src="src/game/config.js?v=sega53"></script>
-  <script src="src/game/state.js?v=sega53"></script>
-  <script src="src/game/track.js?v=sega53"></script>
-  <script src="src/game/traffic.js?v=sega53"></script>
-  <script src="src/game/fx.js?v=sega53"></script>
-  <script src="src/game/brains.js?v=sega53"></script>
-  <script src="src/game/renderer.js?v=sega53"></script>
-  <script src="src/game/gameplay.js?v=sega53"></script>
-  <script src="src/game/sfx.js?v=sega53"></script>
-  <script src="src/game/ui.js?v=sega53"></script>
-  <script src="src/game/sega31.js?v=sega53"></script>
-  <script src="src/game/sega31x.js?v=sega53"></script>
-  <script src="src/game/app.js?v=sega53"></script>
+  <script src="common.js?v=sega54"></script>
+  <script src="src/game/lyrics.js?v=sega54"></script>
+  <script src="src/game/scenery.js?v=sega54"></script>
+  <script src="src/game/sections.js?v=sega54"></script>
+  <script src="src/game/config.js?v=sega54"></script>
+  <script src="src/game/state.js?v=sega54"></script>
+  <script src="src/game/track.js?v=sega54"></script>
+  <script src="src/game/traffic.js?v=sega54"></script>
+  <script src="src/game/fx.js?v=sega54"></script>
+  <script src="src/game/brains.js?v=sega54"></script>
+  <script src="src/game/renderer.js?v=sega54"></script>
+  <script src="src/game/gameplay.js?v=sega54"></script>
+  <script src="src/game/sfx.js?v=sega54"></script>
+  <script src="src/game/roadbodies54.js?v=sega54"></script>
+  <script src="src/game/ui.js?v=sega54"></script>
+  <script src="src/game/sega31.js?v=sega54"></script>
+  <script src="src/game/sega31x.js?v=sega54"></script>
+  <script src="src/game/app.js?v=sega54"></script>
+  <script src="src/game/pixel-fonts.js?v=sega54"></script>
 </body>
 </html>

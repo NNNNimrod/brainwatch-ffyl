@@ -787,6 +787,7 @@
         if (sprite.sectionId && state.sectionId && sprite.sectionId !== state.sectionId) {
           continue;
         }
+        if (sprite.roadBody54) continue; // sega54: on-road bodies never collide (roadbodies54.js splat)
         spriteW = sprite.source.w * SPRITES.SCALE * (sprite.source.scaleMul || 1);
         if (
           Util.overlap(
@@ -1599,7 +1600,16 @@
       state.winCenterBlend = 0;
       state.winPlayerAlpha = 1;
       state.winRideAhead = 0;
-      if (disp >= 665.5 || cruiseLed >= madCap - 0.5) {
+      // sega54: winDepartureStartSec - the departure (rise to mid-screen -> fly into space) waits for the lyric
+      // "Just fucking FIGHT" (219.76 s); until then she cruises at 666 on the empty road.
+      var depAt = (state.config && state.config.winDepartureStartSec != null) ? state.config.winDepartureStartSec : 219.76;
+      var depReady = !(depAt > 0) || (state.songClock != null ? state.songClock : 0) >= depAt;
+      if ((disp >= 665.5 || cruiseLed >= madCap - 0.5) && !state.madMaxUnlocked666) {
+        state.madMaxUnlocked666 = true;
+        state.eventText = "666";
+        state.eventTimer = 1.2;
+      }
+      if (depReady && (disp >= 665.5 || cruiseLed >= madCap - 0.5)) {
         state.madMaxUnlocked666 = true;
         state.winPhase = "centerY";
         phase = "centerY";

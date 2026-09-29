@@ -89,6 +89,7 @@
     state._winDropRoadBgActive = false;
     state.winRoadBgAlpha = 1;
     state._winStarryReveal = 0;
+    state._winStarK = 0; state._winHorizonDrop = 0; state._winHorizonDropT = 0; // sega54
     state._postNukeFreshApplied = false;
   }
 
@@ -525,7 +526,8 @@
     brain.lane = lane;
     brain.attackLane = lane;
     brain.laneU = 0;
-    brain.laneSpeed = c.tunnelBrainSpeed != null ? c.tunnelBrainSpeed : 0.6;
+    // sega54: tunnelBrainSpeedMult (1.5 = 50% faster; travel time / 1.5)
+    brain.laneSpeed = (c.tunnelBrainSpeed != null ? c.tunnelBrainSpeed : 0.6) * (c.tunnelBrainSpeedMult != null ? c.tunnelBrainSpeedMult : 1.5);
     brain.vx = 0;
     brain.zapTimer = 99999;
     brain.postGrowDelay = 99999;
@@ -829,12 +831,17 @@
     // no city behind the mouth, none through the tunnel, green plate appears under the white peak.
     // sega51: tunnelMouthFadeInSec (own duration, default 5 s) + smoothstep ease; alpha only (freeze/shrink timing untouched)
     var mouthFadeSec = c.tunnelMouthFadeInSec != null ? c.tunnelMouthFadeInSec : (visibleSec - freezeStart);
-    var fadeU = Math.max(0, Math.min(1, (t - freezeStart) / Math.max(0.05, mouthFadeSec)));
+    // sega54: tunnelMouthFadeStartSec - the mouth (and the greenbelt->portal crossfade) can start before the road freeze;
+    // the mouth is drawn from then on at its fixed spot (freeze 84.5 / shrink-in / enter unchanged).
+    var mouthFadeStart = c.tunnelMouthFadeStartSec != null ? Math.min(freezeStart, c.tunnelMouthFadeStartSec) : freezeStart;
+    var earlyMouth = !approaching && phase === null && t >= mouthFadeStart && t < freezeStart;
+    if (earlyMouth) state.tunnelEntranceVisible = true;
+    var fadeU = Math.max(0, Math.min(1, (t - mouthFadeStart) / Math.max(0.05, mouthFadeSec)));
     if (c.tunnelMouthFadeEase !== "linear") fadeU = fadeU * fadeU * (3 - 2 * fadeU);
-    state._tunnelMouthAlpha = approaching ? (c.tunnelMouthFadeIn === false ? 1 : fadeU) : 0;
+    state._tunnelMouthAlpha = (approaching || earlyMouth) ? (c.tunnelMouthFadeIn === false ? 1 : fadeU) : 0;
     if (c.tunnelCityFadeOut === false) {
       state._tunnelCityAlpha = 1;
-    } else if (t < freezeStart || t >= whitePeak || phase === 'done' || phase === 'whiteDown' || phase === 'roadWait') {
+    } else if (t < mouthFadeStart || t >= whitePeak || phase === 'done' || phase === 'whiteDown' || phase === 'roadWait') {
       state._tunnelCityAlpha = 1;
     } else {
       state._tunnelCityAlpha = 1 - fadeU;
@@ -1311,16 +1318,35 @@
         state._winDropRoadBgT = 0;
       }
     }
+    var winSync = c.winStarsSyncFade !== false; // sega54
     if (state._winDropRoadBgActive) {
-      var dropSec = c.winAscentDropRoadBgSec != null ? c.winAscentDropRoadBgSec : 2.5;
+      var dropSec = (winSync && c.winRoadStarsFadeSec != null) ? c.winRoadStarsFadeSec
+        : (c.winAscentDropRoadBgSec != null ? c.winAscentDropRoadBgSec : 2.5);
       state._winDropRoadBgT = (state._winDropRoadBgT || 0) + dt;
       state.winRoadBgAlpha = Math.max(0, 1 - state._winDropRoadBgT / Math.max(0.05, dropSec));
     } else {
       state.winRoadBgAlpha = 1;
     }
 
-    // Starry reveal from top during ascent
-    if (c.winAscentStarrySkyEnabled !== false && ascending) {
+    // sega54: winStarsSyncFade - the road fades out while a full-screen star background fades in (same timer, synced);
+    // then the whole horizon (Austin plate + ground band) sinks by winHorizonDropFrac x screen height over winHorizonDropSec,
+    // revealing the stars. Replaces the old top-down starry wipe.
+    if (winSync) {
+      state._winStarryReveal = 0;
+      state._winStarK = state._winDropRoadBgActive ? Math.max(0, Math.min(1, 1 - state.winRoadBgAlpha)) : 0;
+      if (state._winStarK >= 0.999) {
+        state._winHorizonDropT = (state._winHorizonDropT || 0) + dt;
+        var hdDelay = Math.max(0, c.winHorizonDropDelaySec != null ? c.winHorizonDropDelaySec : 0);
+        var hdSec = Math.max(0.05, c.winHorizonDropSec != null ? c.winHorizonDropSec : 3.0);
+        var hdU = Math.max(0, Math.min(1, (state._winHorizonDropT - hdDelay) / hdSec));
+        hdU = hdU * hdU * (3 - 2 * hdU);
+        state._winHorizonDrop = hdU * (c.winHorizonDropFrac != null ? c.winHorizonDropFrac : 1.0);
+      } else {
+        state._winHorizonDropT = 0;
+        state._winHorizonDrop = 0;
+      }
+    } else if (c.winAscentStarrySkyEnabled !== false && ascending) {
+      state._winStarK = 0; state._winHorizonDrop = 0;
       state._winStarryReveal = Math.min(1, (state._winStarryReveal || 0) + dt / 2.2);
     }
   }

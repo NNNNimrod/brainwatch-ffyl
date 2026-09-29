@@ -699,6 +699,9 @@
     var flashStart = nb.flashStart != null ? nb.flashStart : 155.0;
     var nukeStart = nb.start != null ? nb.start : 156.5;
     var nukeEnd = nb.end != null ? nb.end : 159.6;
+    // sega54: nukeFlashShortenSec - the pre-nuke white screen starts this much later (same end at the nuke, same shape)
+    var nfShorten = cfg(state).nukeFlashShortenSec != null ? cfg(state).nukeFlashShortenSec : 1.0;
+    if (nfShorten > 0) flashStart = Math.min(nukeStart - 0.2, flashStart + nfShorten);
 
     if (state.phase !== "running" && state.phase !== "countdown") {
       state.nukeFlash = 0;

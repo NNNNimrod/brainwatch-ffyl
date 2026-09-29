@@ -1000,6 +1000,7 @@
     state._winDropRoadBgActive = false;
     state.winRoadBgAlpha = 1;
     state._winStarryReveal = 0;
+    state._winStarK = 0; state._winHorizonDrop = 0; state._winHorizonDropT = 0; // sega54
     if (!state.postBossCars) {
       state.sectionTraffic = false;
       clearTraffic(state);

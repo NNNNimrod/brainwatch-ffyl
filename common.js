@@ -100,7 +100,7 @@ if (!window.requestAnimationFrame) { // http://paulirish.com/2011/requestanimati
 //  - never blocks the game; drawImage never throws on unloaded/broken art
 //=========================================================================
 
-var ASSET_V = "sega53";
+var ASSET_V = "sega54";
 
 (function sega44DrawImageGuard() {
   try {
@@ -952,6 +952,20 @@ SPRITES.RS_RUBBLE_B  = { x: 0, y: 0, w: 68,  h: 76,  roadside: "rubble_cloud_b",
 SPRITES.RS_RUBBLE_C  = { x: 0, y: 0, w: 60,  h: 52,  roadside: "rubble_cloud_c", scaleMul: 1.5 };
 SPRITES.RS_GOP_SIGN  = { x: 0, y: 0, w: 84,  h: 159, roadside: "gop_sign", scaleMul: 1.25 };
 SPRITES.RS_GOP_SIGN2 = { x: 0, y: 0, w: 84,  h: 156, roadside: "gop_sign2", scaleMul: 1.25 };
+// sega54: on-road dead bodies (roadbodies54.js; flatKey = squashed variant after the splat)
+SPRITES.RS_BODY_A      = { x: 0, y: 0, w: 160, h: 72, roadside: "body_a", scaleMul: 1.25, flatKey: "RS_BODY_A_FLAT" };
+SPRITES.RS_BODY_B      = { x: 0, y: 0, w: 160, h: 72, roadside: "body_b", scaleMul: 1.25, flatKey: "RS_BODY_B_FLAT" };
+SPRITES.RS_BODY_C      = { x: 0, y: 0, w: 160, h: 72, roadside: "body_c", scaleMul: 1.25, flatKey: "RS_BODY_C_FLAT" };
+SPRITES.RS_BODY_A_FLAT = { x: 0, y: 0, w: 160, h: 72, roadside: "body_a_flat", scaleMul: 1.25 };
+SPRITES.RS_BODY_B_FLAT = { x: 0, y: 0, w: 160, h: 72, roadside: "body_b_flat", scaleMul: 1.25 };
+SPRITES.RS_BODY_C_FLAT = { x: 0, y: 0, w: 160, h: 72, roadside: "body_c_flat", scaleMul: 1.25 };
+// sega54: Greenbelt night roadside pool (chorus1 59-81.5, roadbodies54.js)
+SPRITES.RS_GB_ASHE_CEDAR   = { x: 0, y: 0, w: 104, h: 184, roadside: "gb_ashe_cedar", scaleMul: 1.35 };
+SPRITES.RS_GB_LIVE_OAK     = { x: 0, y: 0, w: 160, h: 160, roadside: "gb_live_oak_night", scaleMul: 1.35 };
+SPRITES.RS_GB_BOULDER      = { x: 0, y: 0, w: 120, h: 80,  roadside: "gb_limestone_boulder", scaleMul: 1.35 };
+SPRITES.RS_GB_PRICKLY_PEAR = { x: 0, y: 0, w: 96,  h: 104, roadside: "gb_prickly_pear", scaleMul: 1.35 };
+SPRITES.RS_GB_CREEK_ROCKS  = { x: 0, y: 0, w: 144, h: 56,  roadside: "gb_creek_rocks", scaleMul: 1.35 };
+SPRITES.RS_GB_AGAVE        = { x: 0, y: 0, w: 104, h: 80,  roadside: "gb_agave", scaleMul: 1.35 };
 
 SPRITES.CITY_STREET = [
   SPRITES.RS_LAMP, SPRITES.RS_HYDRANT, SPRITES.RS_TRASH, SPRITES.RS_CONE,
@@ -1013,7 +1027,12 @@ SPRITES.ROADSIDE_IMAGE_NAMES = [
   "roadside/bldg_m", "roadside/bldg_n",
   "roadside/ruin_2", "roadside/ruin_3",
   "roadside/rubble_cloud_a", "roadside/rubble_cloud_b", "roadside/rubble_cloud_c",
-  "roadside/gop_sign", "roadside/gop_sign2"
+  "roadside/gop_sign", "roadside/gop_sign2",
+  // sega54: on-road bodies (+ flattened) and Greenbelt night roadside pool (roadbodies54.js)
+  "roadside/body_a", "roadside/body_b", "roadside/body_c",
+  "roadside/body_a_flat", "roadside/body_b_flat", "roadside/body_c_flat",
+  "roadside/gb_ashe_cedar", "roadside/gb_live_oak_night", "roadside/gb_limestone_boulder",
+  "roadside/gb_prickly_pear", "roadside/gb_creek_rocks", "roadside/gb_agave"
 ];
 
 function bindRoadsideImages(imagesByPath) {

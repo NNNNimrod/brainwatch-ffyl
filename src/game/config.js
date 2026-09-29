@@ -38,7 +38,7 @@
     bossMediumCount: 3, bossMediumSpeedMult: 1.5, bossMediumHp: 100, bossMediumGlowWarnSec: 1.42, bossExitUpSec: 1.2,
     bossMediumPhaseMaxSec: 9.0, bossDropDescendSec: 4.0, bossDropEvery: 0.7, bossDropFallSec: 0.6, bossDropScale: 0.42,
     bossDropDamage: 30, bossDropShootable: true, bossDropTargetMode: "herLane", bossFinalDescendSec: 1.5, bossFinalYFrac: 0.4,
-    bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossShootableBeforeFinal: true, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 5.0,
+    bossFinalFollowLane: true, bossGlowWarnSec: 0.5, bossShootableBeforeFinal: true, bossFinalLatestStartSec: 205.0, bossFailsafeShrinkSec: 0.6, tunnelMouthFadeInSec: 8.0, /* sega54 build (was 5.0) */
     tunnelMouthFadeEase: "smooth", secondVerseTitleOn: true, secondVerseTitleText: "VERSE 2", secondVerseTitleSec: 2.5,
     secondVerseTitleFadeSec: 0.5, tunnelInteriorSectionTitle: false, bgScrollEnabled: true, bgScrollCurvePx: 20, bgScrollSteerPx: 12,
     bgScrollMaxPx: 24, bgScrollEase: 0.6, bgScrollCurveNorm: 4, bossBgLightning: true, bossBgLightningIntensity: 1.5,
@@ -195,6 +195,13 @@
     winFinalTopPx: 10,
     roadsideBuildingScale: 30.31, // sega31d
     roadsideOffsetTowardRoad: 0.72,
+    // sega54: on-road bodies from "blood on the streets" (roadbodies54.js). Density = bodies per 100 road segments.
+    roadBodiesOn: true, roadBodiesStartSec: 163.7, roadBodiesEndSec: 185.22,
+    roadBodiesDensityStart: 3, roadBodiesDensityEnd: 24,
+    roadBodySplatParticles: 34, roadBodySplatSpread: 1.0, roadBodySplatLifeSec: 0.75, roadBodyNoDamage: true,
+    // sega54: Greenbelt night roadside pool replaces the chorus1 boulders in this window
+    greenbeltRoadsideOn: true, greenbeltRoadsideStartSec: 59, greenbeltRoadsideEndSec: 81.5,
+    greenbeltRoadsideDensity: 8, // sega54 build: extra greenbelt props / 100 segments
     roadsideBuildingOffsetTowardRoad: 0.99, // sega31k buildings closer still
     roadsidePullTowardRoadBuildingsOnly: true,
     roadsidePullTowardRoad: true,
@@ -634,6 +641,105 @@
       "acid": "images/bg-austin-new/fast/background-acid.jpg",
       "greenbelt": "images/bg-austin-new/fast/background-greenbelt-night-v3.jpg" // sega52: night greenbelt v3
     },
+    // sega54 build: PHOTO background set (free-licence photos, Sega-pixelated; see NOTICE). photoPlatesOn=false -> the old
+    // illustrated plates above come back. Same plate keys; only the paths + skyline masks swap. New files, old ones untouched.
+    photoPlatesOn: true,
+    photoNightSynthPath: "images/bg-austin-new/fast/background-photo-night-synthwave.jpg",   // verse 1 (0 -> photoNightUntilSec), first-load plate
+    photoDuskCleanPath: "images/bg-austin-new/fast/background-photo-dusk-clean.jpg",         // orange stretch (holding)
+    photoVioletPath: "images/bg-austin-new/fast/background-photo-violet.jpg",                // purple (holding x-fade, 120.5-156.5)
+    photoGreenbeltPath: "images/bg-austin-new/fast/background-photo-greenbelt-night.jpg",    // greenbelt 59-81.5
+    photoPostnukeDuskPath: "images/bg-austin-new/fast/background-photo-postnuke-dusk.jpg",   // post-nuke fire cycle A
+    photoPostnukeAcidPath: "images/bg-austin-new/fast/background-photo-postnuke-acid.jpg",   // post-nuke fire cycle B
+    photoTunnelPortalPath: "images/fx/tunnel-portal-photo.png",                               // tunnel mouth (same layout as v2)
+    photoNightUntilSec: 40.2,   // night-synthwave plate until the orange->violet holding cross-fade starts
+    photoNightFadeSec: 2.0,     // night -> orange cross-fade (ends at photoNightUntilSec)
+    skylineMaskPhoto: {"night-synth": [0.683, 0.667, 0.658, 0.658, 0.683, 0.667, 0.708, 0.717, 0.717, 0.717, 0.708, 0.717, 0.733, 0.75, 0.733, 0.733, 0.675, 0.642, 0.65, 0.65, 0.642, 0.642, 0.642, 0.658, 0.65, 0.642, 0.642, 0.692, 0.692, 0.692, 0.717, 0.733, 0.692, 0.642, 0.65, 0.667, 0.65, 0.542, 0.542, 0.542, 0.55, 0.7, 0.725, 0.717, 0.725, 0.725, 0.708, 0.642, 0.608, 0.608, 0.675, 0.658, 0.667, 0.683, 0.667, 0.667, 0.667, 0.675, 0.65, 0.65, 0.65, 0.7, 0.683, 0.65, 0.642, 0.642, 0.642, 0.667, 0.658, 0.658, 0.667, 0.667, 0.675, 0.658, 0.65, 0.675, 0.575, 0.575, 0.633, 0.675, 0.7, 0.683, 0.683, 0.683, 0.683, 0.683, 0.692, 0.7, 0.7, 0.7, 0.7, 0.725, 0.717, 0.717, 0.7, 0.683, 0.683, 0.675, 0.683, 0.692, 0.742, 0.7, 0.633, 0.692, 0.675, 0.733, 0.733, 0.742, 0.717, 0.708, 0.692, 0.708, 0.683, 0.683, 0.742, 0.733, 0.7, 0.7, 0.7, 0.708, 0.65, 0.65, 0.683, 0.658, 0.6, 0.6, 0.6, 0.617], "clean": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.602, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.435, 0.438, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.454, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.473, 0.483, 0.481, 0.483, 0.552, 0.585, 0.6, 0.629, 0.619, 0.454, 0.452, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "dusk": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.598, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.423, 0.417, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.427, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.452, 0.446, 0.444, 0.44, 0.552, 0.585, 0.6, 0.629, 0.619, 0.429, 0.427, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "acid": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.598, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.423, 0.417, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.427, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.452, 0.446, 0.444, 0.44, 0.552, 0.585, 0.6, 0.629, 0.619, 0.429, 0.427, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "greenbelt": [0.308, 0.321, 0.338, 0.344, 0.331, 0.331, 0.315, 0.319, 0.329, 0.338, 0.342, 0.342, 0.331, 0.333, 0.348, 0.352, 0.369, 0.371, 0.36, 0.36, 0.333, 0.323, 0.283, 0.283, 0.333, 0.342, 0.369, 0.356, 0.312, 0.31, 0.304, 0.304, 0.321, 0.321, 0.315, 0.315, 0.325, 0.325, 0.365, 0.365, 0.346, 0.346, 0.327, 0.327, 0.36, 0.365, 0.379, 0.379, 0.375, 0.373, 0.35, 0.35, 0.34, 0.338, 0.352, 0.35, 0.34, 0.333, 0.31, 0.31, 0.335, 0.342, 0.35, 0.333, 0.298, 0.283, 0.29, 0.287, 0.298, 0.3, 0.323, 0.35, 0.371, 0.365, 0.365, 0.354, 0.358, 0.362, 0.371, 0.356, 0.348, 0.329, 0.331, 0.346, 0.352, 0.365, 0.344, 0.308, 0.306, 0.294, 0.294, 0.306, 0.306, 0.308, 0.308, 0.31, 0.31, 0.308, 0.308, 0.323, 0.327, 0.346, 0.346, 0.312, 0.312, 0.306, 0.306, 0.344, 0.344, 0.352, 0.352, 0.356, 0.356, 0.377, 0.377, 0.371, 0.369, 0.335, 0.335, 0.344, 0.344, 0.335, 0.335, 0.302, 0.296, 0.308, 0.319, 0.354]},
+    // sega54 build: baked sega54 batch editor cells (code defaults already equal; explicit so the build == the editor)
+    winDepartureStartSec: 219.76,
+    noRoadsideAfterBoss: true,
+    noRoadsideFromSec: 185.22,
+    tunnelBrainSpeedMult: 1.5,
+    nukeFlashShortenSec: 1.0,
+    tunnelMouthFadeStartSec: 81.5,
+    winStarsSyncFade: true,
+    winRoadStarsFadeSec: 2.5,
+    winHorizonDropDelaySec: 0.0,
+    winHorizonDropFrac: 1.0,
+    winHorizonDropSec: 3.0,
+    bgVioletZoomOn: true,
+    bgVioletZoomTo: 1.15,
+    bgVioletZoomStartSec: 40.2,
+    bgVioletZoomEndSec: 59.0,
+    greenbeltZoomOn: true,
+    greenbeltZoomTo: 1.3,
+    greenbeltZoomStartSec: 59.0,
+    greenbeltZoomEndSec: 81.5,
+    postTunnelDawnOn: true,
+    postTunnelDawnStartSec: 106.82,
+    postTunnelDawnFadeSec: 1.5,
+    postTunnelDawnEndSec: 120.5,
+    postTunnelDawnPath: "images/bg-austin-new/fast/background-austin-free-dawn.jpg",
+    postTunnelDawnChoice: "dawn",
+    postTunnelDawnPathBlue: "images/bg-austin-new/fast/background-austin-free.jpg",
+    postTunnelDawnPanX: 0.5,
+    bossBgCapitolOn: true,
+    bossBgCapitolPath: "images/bg-austin-new/fast/background-capitol-postnuke.jpg",
+    bossBgCapitolGreenPath: "images/bg-austin-new/fast/background-capitol-postnuke-green.jpg",
+    bossBgCapitolStartSec: 184.0,
+    bossBgCapitolEndSec: 999,
+    bossBgCapitolSteadyBase: true,
+    bossBgCapitolGreenGapMinSec: 0.35,
+    bossBgCapitolGreenGapMaxSec: 2.2,
+    bossBgCapitolGreenOnMinSec: 0.05,
+    bossBgCapitolGreenOnMaxSec: 0.4,
+    bossBgCapitolGreenPopChance: 0.8,
+    bossBgCapitolGreenStutterChance: 0.25,
+    bossBgCapitolGreenAlpha: 1.0,
+    bossBgCapitolJumpPxX: 18,
+    bossBgCapitolJumpPxY: 10,
+    bossBgCapitolJumpEverySec: 0.05,
+    bossBgCapitolScaleJitter: 0.04,
+    bossBgCapitolLazyPrio: 150,
+    bossFireCycleOn: true,
+    bossFireCycleSpeed: 10,
+    bossFireCyclePalette: "auto",
+    bossFireCycleMaskPath: "images/bg-austin-new/fast/capitol-postnuke-firemask.png",
+    bossDomeRevealOn: true,
+    bossDomeCrackStartSec: 185.22,
+    bossDomeCrackDurSec: 1.6,
+    bossRiseFromDomeSec: 186.97,
+    bossRiseDurSec: 2.5,
+    bossRiseLiftPx: 70,
+    bossBgCapitolUnzoom: true,
+    bossDomePreGlowOn: true,
+    bossDomePreGlowStartSec: 184.6,
+    bossDomePreGlowFlashHz: 4.3,
+    bossDomeVibratePx: 3,
+    bossDomeVibrateHz: 22,
+    bossThrobOn: true,
+    bossThrobScale: 0.14,
+    bossThrobHz: 2.15,
+    bossThrobPhaseSec: 0,
+    bossThrobRedFlush: 0.55,
+    bossShootFromRevealOn: true,
+    bossRevealShootEverySec: 0.8,
+    bossDomeHoverSec: 6.0,
+    bossDomeSwayPx: 90,
+    bossDomeSwayHz: 0.5375,
+    bossDomeHoverShootEverySec: 0.7,
+    bossDomeHoverScaleMult: 1.25,
+    bossDomeApproachSec: 2.0,
+    bossDomeMediumEndBySec: 200.5,
+    uiFontTitle: "\"Press Start 2P\", \"Courier New\", monospace",
+    uiFontBody: "\"VT323\", \"Courier New\", monospace",
+    uiFontLyrics: "\"VT323\", \"Courier New\", monospace",
+    uiFontScale: 1.0,
+    bossRiseStartScaleMult: 1.0,
+    bossDomeChunkCount: 18,
+    bossDomeCavityY: 138,
+    bossDomeCrackMaskPath: "images/bg-austin-new/fast/capitol-dome-crackmask.png",
+    bossBgCapitolOpenPath: "images/bg-austin-new/fast/background-capitol-postnuke-open.jpg",
+    bossBgCapitolGreenOpenPath: "images/bg-austin-new/fast/background-capitol-postnuke-green-open.jpg",
     austinBgBlendSec: 1.5, // sega45: color-shift blend between pre-nuke plates (same skyline)
     verse1AustinBgPlate: "dusk-clean",
     chorus1AustinBgPlate: "violet",
@@ -956,7 +1062,7 @@
       { score: 120000, label: "BRAIN WATCH" }
     ],
     // ===== sega52 baked from editor (2026-09-28 CT) =====
-    startBgFadeInSec: 5.0,
+    startBgFadeInSec: 10.0, // sega54 build: 10 s start fade (was 5.0)
     bgHoldingCrossfadeOn: true,
     bgHoldingCrossfadeFrom: "dusk-clean",
     bgHoldingCrossfadeTo: "violet",

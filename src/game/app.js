@@ -64,10 +64,17 @@
     try { window.__ffylState = state; } catch (eEarly) {}
     // sega43: fast single-strip Austin plates (chorus1 violet / verse1 dusk) ride the CRITICAL set
     var bootCfg = state.config || ns.CONFIG || {};
+    // sega54 build: PHOTO plate set (photoPlatesOn) — same keys, new paths; verse-1 night-synthwave is the first-load plate
+    var photoOn = bootCfg.photoPlatesOn !== false;
+    var PHOTO_PATHS = photoOn ? { "night-synth": bootCfg.photoNightSynthPath, "dusk-clean": bootCfg.photoDuskCleanPath,
+      "violet": bootCfg.photoVioletPath, "greenbelt": bootCfg.photoGreenbeltPath, "dusk": bootCfg.photoPostnukeDuskPath,
+      "acid": bootCfg.photoPostnukeAcidPath } : {};
+    if (photoOn && bootCfg.photoTunnelPortalPath) bootCfg.tunnelEntranceAsset = bootCfg.photoTunnelPortalPath;
     var fastCritKeys = (bootCfg.austinBgFastStrips !== false && bootCfg.austinBgUseAustinNewPlates !== false)
-      ? (bootCfg.austinBgFastStripCritical || ["dusk-clean"]).slice() : [];
+      ? (photoOn && PHOTO_PATHS["night-synth"] ? ["night-synth"] : (bootCfg.austinBgFastStripCritical || ["dusk-clean"]).slice()) : [];
     // sega45: literal strip paths live in config.austinBgStripPaths (deploy scanner ships exactly these)
     function stripPath(k) {
+      if (PHOTO_PATHS[k]) return PHOTO_PATHS[k];
       var m = bootCfg.austinBgStripPaths || {};
       // sega52: duskCleanCapitolFix — repaired dusk-clean plate (Capitol dome top restored)
       if (k === "dusk-clean" && bootCfg.duskCleanCapitolFix === true) return "images/bg-austin-new/fast/background-dusk-clean-capfix.jpg";
@@ -261,6 +268,7 @@
         (function queueStrips() {
           if (cfg.austinBgFastStrips === false || cfg.austinBgUseAustinNewPlates === false) return;
           var order = cfg.austinBgLazyStrips || [["violet", 20], ["green-clean", 70], ["dusk", 140], ["acid", 141]];
+          if (photoOn) order = [["dusk-clean", 12]].concat(order);   // sega54: orange stretch (40 s) no longer critical
           order.forEach(function(p) {
             var key = p[0];
             if (state.austinStrips[key] || fastCritKeys.indexOf(key) >= 0) return;
@@ -273,6 +281,45 @@
             });
           });
         })();
+
+        // sega54: post-tunnel Austin plate (free-licence skyline photo, Sega-pixelated) — behind postTunnelDawnOn
+        if (cfg.postTunnelDawnOn !== false && cfg.austinBgFastStrips !== false && cfg.austinBgUseAustinNewPlates !== false) {
+          deferredImg(cfg.postTunnelDawnLazyPrio != null ? cfg.postTunnelDawnLazyPrio : 72,
+            (cfg.postTunnelDawnChoice === "blue")
+              ? (cfg.postTunnelDawnPathBlue || "images/bg-austin-new/fast/background-austin-free.jpg")
+              : (cfg.postTunnelDawnPath || "images/bg-austin-new/fast/background-austin-free-dawn.jpg"), function(img) {
+            if (!(img.width > 0)) return;
+            img._austinStrip = true;
+            img._austinKey = "austin-free";
+            state.austinStrips["austin-free"] = img;
+            state._austinNewPlatesReady["austin-free"] = "fast";
+          });
+        }
+
+        // sega54: BOSS STAGE Capitol plates (fiery base + radioactive-green flicker twin) — behind bossBgCapitolOn
+        if (cfg.bossBgCapitolOn !== false && cfg.austinBgFastStrips !== false && cfg.austinBgUseAustinNewPlates !== false) {
+          [["capitol-fire", cfg.bossBgCapitolPath || "images/bg-austin-new/fast/background-capitol-postnuke.jpg"],
+           ["capitol-green", cfg.bossBgCapitolGreenPath || "images/bg-austin-new/fast/background-capitol-postnuke-green.jpg"],
+           // sega54: broken-open dome twins (after the dome burst)
+           ["capitol-fire-open", cfg.bossBgCapitolOpenPath || "images/bg-austin-new/fast/background-capitol-postnuke-open.jpg"],
+           ["capitol-green-open", cfg.bossBgCapitolGreenOpenPath || "images/bg-austin-new/fast/background-capitol-postnuke-green-open.jpg"]].forEach(function(p, pi) {
+            deferredImg((cfg.bossBgCapitolLazyPrio != null ? cfg.bossBgCapitolLazyPrio : 150) + pi, p[1], function(img) {
+              if (!(img.width > 0)) return;
+              img._austinStrip = true;
+              img._austinKey = p[0];
+              state.austinStrips[p[0]] = img;
+              state._austinNewPlatesReady[p[0]] = "fast";
+            });
+          });
+          // sega54: fire colour-cycle mask + dome crack mask (320x120 PNG, lossless; R = phase/order, G = level)
+          state._capitolFx = state._capitolFx || {};
+          [["fire", cfg.bossFireCycleMaskPath || "images/bg-austin-new/fast/capitol-postnuke-firemask.png"],
+           ["crack", cfg.bossDomeCrackMaskPath || "images/bg-austin-new/fast/capitol-dome-crackmask.png"]].forEach(function(p, pi) {
+            deferredImg((cfg.bossBgCapitolLazyPrio != null ? cfg.bossBgCapitolLazyPrio : 150) + 4 + pi, p[1], function(img) {
+              if (img.width > 0) state._capitolFx[p[0]] = img;
+            });
+          });
+        }
 
         // tunnel entrance + interior frames (sega31x binds them; preload here in order)
         if (ns.Sega31x && ns.Sega31x.preloadTunnelImages) {

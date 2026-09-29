@@ -551,15 +551,104 @@
     }
     if (ph === "rwApproach") {
       var dur = Math.max(0.5, rwCfg(state, "bossApproachDur", 7));
+      // sega54: dome reveal — the brain is inside the Capitol dome: hidden until the burst, sits in the broken dome,
+      // then rises out (bossRiseDurSec) onto the normal approach path and becomes the boss. Needs the Capitol plate drawn.
+      var dRv = (ns.Renderer && ns.Renderer.domeReveal54) ? ns.Renderer.domeReveal54(state) : null;
+      var dXY = state._capitolDomeXY;
+      var fromDome = !!(dRv && dRv.on && dXY && state._capitolBossActive);
+      var sDome = 0.2;
+      if (fromDome) {
+        var cavW = 88 * (dXY.ppx || 0.5) * rwCfg(state, "bossRiseStartScaleMult", 1.0);
+        sDome = Math.max(0.06, Math.min(0.6, cavW / Math.max(1, (boss.radius || 60) * 2.4)));
+        var revShoot = rwCfg(state, "bossShootFromRevealOn", true) !== false;
+        var revEvery = Math.max(0.2, rwCfg(state, "bossRevealShootEverySec", 0.8));
+        if (t < dRv.riseStart) {
+          var szH = rwSetDraw(boss, dXY.x, dXY.y, sDome, t >= dRv.burst ? 1 : 0, dt);
+          boss.noTap = true; R.phaseT = 0; R.domeRise = true;
+          if (revShoot && t >= dRv.burst) {           // sega54: angry from the moment it is revealed
+            R.revShot = (R.revShot != null ? R.revShot : 0.15) - dt;
+            if (R.revShot <= 0) {
+              R.revShot = revEvery; R.lastLane = 1 - (R.lastLane || 0);
+              rwSpawnProjectile(state, boss.x, boss.y + szH * 0.2, R.lastLane, rwCfg(state, "bossProjectileTravelSec", 1.2),
+                rwCfg(state, "bossProjectileScale", 0.42), rwCfg(state, "bossProjectileShootable", true) !== false, "proj");
+            }
+          }
+          R.nextShot = Math.min(R.nextShot != null ? R.nextShot : revEvery, revEvery);
+          return;
+        }
+      }
+      function rwSpawnMediums54() {
+        var n = Math.max(0, Math.round(rwCfg(state, "bossMediumCount", 3))), i, m, mult = rwCfg(state, "bossMediumSpeedMult", 1.5);
+        for (i = 0; i < n; i++) {
+          m = spawnBrain(state, { finale: true, medium: true, kind: "medium", sizeScale: ff.mediumScale != null ? ff.mediumScale : 1.25,
+            hp: rwCfg(state, "bossMediumHp", 100), fastGrow: true, x: w * ((i + 1) / (n + 1)) });
+          if (m && m.alive !== false) {
+            m.rwMedium = true;
+            m.vx = (m.vx || (Math.random() < 0.5 ? -60 : 60)) * mult;
+            m.approachSpeed = (m.approachSpeed || 0.85) * mult;
+            m.zapTimer = (m.zapTimer != null ? m.zapTimer : 1.5) / mult;
+          }
+        }
+        R.y0 = boss.y; R.spawnedMediums = true;
+        go("rwMediums");
+      }
+      // sega54: from the dome — RISE out of the skull to a hover point just above it, HOVER bossDomeHoverSec swaying
+      // left/right and spitting tiny brains at her, then APPROACH (bossDomeApproachSec) to the fight line; only then the
+      // normal fight (mediums, drops, final) starts.
+      if (fromDome && R.domeRise) {
+        var rDur = Math.max(0.2, dRv.riseDur), hov = Math.max(0, rwCfg(state, "bossDomeHoverSec", 6));
+        var apS = Math.max(0.3, rwCfg(state, "bossDomeApproachSec", 2.0)), pT = R.phaseT;
+        var sH = sDome * rwCfg(state, "bossDomeHoverScaleMult", 1.25);
+        var szEst = (boss.radius || 60) * 2.4 * sH;
+        var hy0 = Math.max(dXY.y - rwCfg(state, "bossRiseLiftPx", 70), szEst * 0.5 + 6);
+        var hx, hy, hs, shootEv, kk;
+        if (pT < rDur) {
+          kk = pT / rDur; kk = kk * kk * (3 - 2 * kk);
+          hx = dXY.x; hy = dXY.y + (hy0 - dXY.y) * kk; hs = sDome + (sH - sDome) * kk;
+          shootEv = revShoot ? revEvery : 0;
+        } else if (pT < rDur + hov) {
+          var tau = pT - rDur, swA = rwCfg(state, "bossDomeSwayPx", 90) * Math.min(1, tau / 0.6);
+          var swHz = rwCfg(state, "bossDomeSwayHz", 129 / 60 / 4);
+          hx = dXY.x + swA * Math.sin(6.2832 * swHz * tau); hy = hy0 + 5 * Math.sin(6.2832 * swHz * 2 * tau); hs = sH;
+          shootEv = Math.max(0, rwCfg(state, "bossDomeHoverShootEverySec", 0.7));
+          R.hovEnd = null;
+        } else {
+          if (!R.hovEnd) R.hovEnd = { x: boss.x, y: boss.y };
+          kk = Math.min(1, (pT - rDur - hov) / apS); var ke = kk * kk * (3 - 2 * kk);
+          hx = R.hovEnd.x + (w / 2 - R.hovEnd.x) * ke; hy = R.hovEnd.y + (viewY - R.hovEnd.y) * ke; hs = sH + (1 - sH) * ke * ke;
+          shootEv = kk < 0.9 ? rwCfg(state, "bossApproachProjectileEvery", 1.1) : 0;
+        }
+        sz = rwSetDraw(boss, hx, hy, hs, 1, dt);
+        boss.noTap = !(rwCfg(state, "bossShootableBeforeFinal", true) !== false && hs >= 0.3);
+        R.nextShot -= dt;
+        if (shootEv > 0 && R.nextShot <= 0) {
+          R.nextShot = Math.max(0.2, shootEv); R.lastLane = 1 - (R.lastLane || 0);
+          rwSpawnProjectile(state, boss.x, boss.y + sz * 0.2, R.lastLane, rwCfg(state, "bossProjectileTravelSec", 1.2),
+            rwCfg(state, "bossProjectileScale", 0.42), rwCfg(state, "bossProjectileShootable", true) !== false, "proj");
+        }
+        if (pT >= rDur + hov + apS) { R.domeFight = true; rwSpawnMediums54(); }
+        return;
+      }
       var u = Math.min(1, R.phaseT / dur);
       var s0 = rwCfg(state, "bossApproachStartScale", 0.05);
       var scA = s0 + (1 - s0) * u * u;
-      sz = rwSetDraw(boss, w / 2, horizonY + (viewY - horizonY) * (u * (2 - u)), scA, Math.min(1, u / 0.08), dt);
+      var axX = w / 2, axY = horizonY + (viewY - horizonY) * (u * (2 - u)), aAl = Math.min(1, u / 0.08);
+      if (fromDome && R.domeRise) {
+        var rk = Math.min(1, R.phaseT / Math.max(0.2, dRv.riseDur)); rk = rk * rk * (3 - 2 * rk);
+        axX = dXY.x + (axX - dXY.x) * rk;
+        // rise UP out of the skull first (arc of bossRiseLiftPx), then swoop down/forward onto the fight line
+        var lift = rwCfg(state, "bossRiseLiftPx", 70) * Math.sin(Math.PI * Math.min(1, rk * 1.15));
+        axY = dXY.y + (viewY - dXY.y) * rk + (axY - viewY) * rk - Math.max(0, lift);
+        scA = Math.max(scA, sDome); aAl = 1;
+      }
+      sz = rwSetDraw(boss, axX, axY, scA, aAl, dt);
       // sega51: bossShootableBeforeFinal — boss takes damage while visible (A once big enough, C), not while off-screen
       boss.noTap = !(rwCfg(state, "bossShootableBeforeFinal", true) !== false && scA >= 0.3);
       R.nextShot -= dt;
       if (R.nextShot <= 0 && u < 0.97) {
-        R.nextShot = rwCfg(state, "bossApproachProjectileEvery", 1.1);
+        // sega54: during the rise out of the dome it fires at the reveal rate
+        R.nextShot = (fromDome && R.domeRise && R.phaseT < dRv.riseDur && rwCfg(state, "bossShootFromRevealOn", true) !== false)
+          ? Math.max(0.2, rwCfg(state, "bossRevealShootEverySec", 0.8)) : rwCfg(state, "bossApproachProjectileEvery", 1.1);
         R.lastLane = 1 - R.lastLane;
         rwSpawnProjectile(state, boss.x, boss.y + sz * 0.2, R.lastLane, rwCfg(state, "bossProjectileTravelSec", 1.2),
           rwCfg(state, "bossProjectileScale", 0.42), rwCfg(state, "bossProjectileShootable", true) !== false, "proj");
@@ -590,6 +679,7 @@
       var aliveM = 0;
       for (var j = 0; j < state.brains.length; j++) { var bm = state.brains[j]; if (bm && bm.rwMedium && bm.alive && !bm.exitShrink) aliveM++; }
       if (R.phaseT >= rwCfg(state, "bossMediumPhaseMaxSec", 9)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; }
+      if (R.domeFight && ue >= 1 && t >= rwCfg(state, "bossDomeMediumEndBySec", 200.5)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; } // sega54
       if (aliveM === 0 && ue >= 1) { go("rwDrop"); R.dropAcc = 0; R.dropLane = rwHerLane(state); }
       return;
     }
@@ -2042,9 +2132,23 @@
       : "rgba(180, 40, 255, 0.16)");
     ctx.fill();
 
+    // sega54: angry boss throb on the beat (129 BPM): sharp pulse, squash/stretch, red flush — from the dome reveal on
+    var thX = 1, thY = 1, thRed = 0, cT = state.config || {};
+    if (brain.isBoss && !brain.bossDying && cT.bossThrobOn !== false) {
+      var dvT = (ns.Renderer && ns.Renderer.domeReveal54) ? ns.Renderer.domeReveal54(state) : null;
+      var tT = state.songClock || 0;
+      if (!(dvT && dvT.on && state._capitolBossActive && tT < dvT.burst)) {
+        var hz = cT.bossThrobHz != null ? cT.bossThrobHz : 129 / 60;
+        var ph0 = (tT - (cT.bossThrobPhaseSec != null ? cT.bossThrobPhaseSec : 0)) * hz;
+        var bp = Math.pow(Math.max(0, Math.cos(2 * Math.PI * (ph0 - Math.floor(ph0)))), 6);  // sharp beat spike
+        var ts = cT.bossThrobScale != null ? cT.bossThrobScale : 0.14;
+        thX = 1 + ts * bp * 1.25; thY = 1 + ts * bp * 0.45 - ts * 0.35 * Math.pow(Math.sin(Math.PI * (ph0 - Math.floor(ph0))), 2) * 0.5;
+        thRed = bp * (cT.bossThrobRedFlush != null ? cT.bossThrobRedFlush : 0.55);
+      }
+    }
     if (sprites && sprite) {
-      dw = r * 2.6 * throbScale;
-      dh = r * 2.6 * throbScale;
+      dw = r * 2.6 * throbScale * thX;
+      dh = r * 2.6 * throbScale * thY;
       ctx.translate(x, y);
       if (flash > 0) {
         ctx.globalAlpha = 0.55 + flash * 0.45;
@@ -2055,6 +2159,11 @@
       }
       if (fadeA < 1) ctx.globalAlpha = fadeA * (flash > 0 ? 0.55 + flash * 0.45 : 1);
       ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
+      if (thRed > 0.02) { // sega54: red flush on the beat (same red tell filter, faded by the pulse)
+        ctx.filter = "sepia(1) saturate(6) hue-rotate(-50deg) brightness(1.2)";
+        ctx.globalAlpha = fadeA * Math.min(1, thRed);
+        ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
+      }
       ctx.filter = "none";
       ctx.globalAlpha = 1;
       ctx.setTransform(1, 0, 0, 1, 0, 0);

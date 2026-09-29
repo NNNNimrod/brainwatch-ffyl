@@ -119,6 +119,11 @@
       tone(700, 0.05, "square", 0.05);
       setTimeout(function() { tone(940, 0.07, "square", 0.05); }, 45);
     },
+    squish: function() {
+      // sega54: tiny wet squish for the on-road body splat (no wav in sounds/)
+      noiseBurst(0.07, 0.07);
+      tone(120, 0.09, "sine", 0.07, 45);
+    },
     tokenCoin: function() {
       // prefer short wav; fall back to synth
       playWav("sounds/token-coin.wav", function() {

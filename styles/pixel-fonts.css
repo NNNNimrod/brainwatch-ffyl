@@ -1,0 +1,53 @@
+/* sega54: RETRO 8-BIT PIXEL FONTS everywhere (self-hosted, SIL OFL 1.1 — fonts/OFL-*.txt).
+   Title/HUD = Press Start 2P (8-px grid: sizes are snapped to multiples of 8 by src/game/pixel-fonts.js),
+   body + lyrics = VT323. Families are CSS vars so the editor cells uiFontTitle/uiFontBody/uiFontLyrics/uiFontScale
+   can swap them at runtime (pixel-fonts.js writes the vars on :root). */
+@font-face { font-family: "Press Start 2P"; src: url("../fonts/PressStart2P-Regular.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "VT323"; src: url("../fonts/VT323-Regular.ttf") format("truetype");
+  font-weight: 400; font-style: normal; font-display: swap; }
+:root {
+  --ui-font-title: "Press Start 2P", "Courier New", monospace;
+  --ui-font-body: "VT323", "Courier New", monospace;
+  --ui-font-lyrics: "VT323", "Courier New", monospace;
+}
+/* crisp: no font smoothing, no faux bold/italic smear on the pixel glyphs */
+html, body, body * {
+  -webkit-font-smoothing: none !important; -moz-osx-font-smoothing: unset !important; font-smooth: never;
+  text-rendering: optimizeSpeed; font-synthesis: none; font-kerning: none;
+}
+body, body * { font-family: var(--ui-font-body) !important; font-weight: 400 !important; font-style: normal !important;
+  letter-spacing: 0 !important; }
+/* titles, buttons, pills, HUD meters + labels, modals' headings, banners, win/doom screens */
+body h1, body h2, body h3, body h4, button, .primary-btn, .secondary-btn, .touch-btn, .ts-btn, .chip, .label, .meter-label,
+#hud, #hud *, .topbar, .topbar *, #overlayTitle, #instructionsTitle, #countdown, #instructionBanner, #hqToast, #eventFeed, #eventFeed *,
+#phaseOverlay, #phaseOverlay *, #deathFlash, #deathFlash *, #finaleFx, #finaleFx *, #bgChip, .trainer-head, .trainer-head *,
+.initials-label, #initialsInput, #highScoreList, #highScoreList *, [class*="title"], [class*="banner"], [class*="toast"], [class*="pill"],
+[class*="meter"], [id*="Title"], [id*="Banner"] {
+  font-family: var(--ui-font-title) !important; line-height: 1.25;
+}
+/* lyrics + karaoke cards */
+#lyrics, #lyrics *, #lyric-current, #lyric-next, .lyric-line, .karaoke-line, #karaokeCurrent, #karaokeNext, #finaleKaraoke, #finaleKaraoke *,
+[class*="lyric"], [class*="karaoke"] { font-family: var(--ui-font-lyrics) !important; line-height: 1.1; }
+/* body copy inside modals / cards stays the readable body font */
+#instructionsBody, #instructionsBody *, #overlayMessage, #overlayMessage * { font-family: var(--ui-font-body) !important; }
+canvas { image-rendering: pixelated; }
+/* HUD meter labels: 8-px glyphs in the 12/8-px bars (health / power) — no extra leading, centred */
+.meter-label { line-height: 1 !important; top: 50% !important; transform: translateY(-50%) !important; }
+.power-meter { height: 10px; }
+/* sega54 build: top bar — SCORE/SPD/DEATHS pills get their own row under the title (never over FIGHT FOR YOUR LIFE),
+   the title row leaves room for the floating PAUSE button */
+.topbar { flex-wrap: wrap; row-gap: 4px; }
+.app-shell.playing .topbar-branding { padding-right: 104px; }
+.hud-compact { flex: 1 1 100%; max-width: 100% !important; justify-content: flex-end; }
+.chip { padding: 3px 6px; }
+/* start-screen buttons: bigger pixel text needs room */
+.primary-btn, .secondary-btn { white-space: nowrap; }
+/* sega54 build: CC BY credit for the photo skyline plates (start screen) */
+#phaseOverlay .photo-credit, #phaseOverlay .photo-credit * { font-family: var(--ui-font-body) !important; }
+.photo-credit { margin: 10px 6px 0; font-size: 13px; line-height: 1.05; color: #e6c8f2; text-align: center; }
+.photo-credit a { color: rgba(125,255,239,0.85); }
+.app-shell.playing #photoCredit, .app-shell.karaoke-active #photoCredit { display: none !important; }
+#lyrics { position: relative; }
+#photoCredit { position: absolute; left: 8px; right: 8px; top: 50%; transform: translateY(-50%); margin: 0;
+  font-family: var(--ui-font-body) !important; pointer-events: auto; }

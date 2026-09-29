@@ -370,7 +370,7 @@
   //   → green-clean (white-out 106.82) → violet (diamond2 120.5, 1.5 s blend)
   //   → nuke 156.5: dusk(fires) ⇄ acid(fires) slow cross-fade (hold/fade), + background-only shake.
   // ---------------------------------------------------------------------------------------------
-  var PRE_NUKE_KEYS = ["dusk-clean", "violet", "green-clean"];
+  var PRE_NUKE_KEYS = ["dusk-clean", "violet", "green-clean", "night-synth"]; // sega54: + photo night-synthwave (verse 1)
   var FIRE_KEYS = ["dusk", "acid", "ember"];
 
   function smoothstep01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
@@ -424,11 +424,250 @@
     return k;
   }
 
+  // sega54: boss-stage Capitol green flicker. Irregular pops: gap in [GapMin, GapMax] s, on for [OnMin, OnMax] s,
+  // with random 1-frame stutter-outs while on (StutterChance) — green pops in briefly, fiery stays the base.
+  var CAPITOL_POSTNUKE_MASK = [0.64, 0.627, 0.627, 0.64, 0.64, 0.681, 0.633, 0.637, 0.521, 0.521, 0.56, 0.56, 0.615, 0.615, 0.802, 0.615, 0.617, 0.56, 0.56, 0.521, 0.521, 0.637, 0.633, 0.681, 0.64, 0.64, 0.627, 0.656, 0.637, 0.633, 0.61, 0.608, 0.608, 0.562, 0.581, 0.54, 0.56, 0.721, 0.721, 0.721, 0.721, 0.721, 0.604, 0.598, 0.598, 0.585, 0.596, 0.585, 0.581, 0.594, 0.558, 0.577, 0.562, 0.556, 0.537, 0.533, 0.506, 0.492, 0.383, 0.308, 0.256, 0.233, 0.206, 0.087, 0.065, 0.065, 0.206, 0.235, 0.254, 0.31, 0.379, 0.4, 0.469, 0.477, 0.504, 0.517, 0.521, 0.51, 0.523, 0.54, 0.537, 0.542, 0.556, 0.565, 0.571, 0.569, 0.567, 0.577, 0.581, 0.588, 0.594, 0.598, 0.602, 0.721, 0.721, 0.721, 0.602, 0.604, 0.721, 0.606, 0.613, 0.613, 0.621, 0.583, 0.217, 0.571, 0.6, 0.606, 0.115, 0.629, 0.66, 0.66, 0.629, 0.115, 0.606, 0.6, 0.571, 0.217, 0.583, 0.621, 0.613, 0.613, 0.606, 0.721, 0.604, 0.602, 0.721, 0.721];
+  // sega54: lightning/skyline mask of the OPEN (burst) dome — no lantern/statue, jagged shards (gen_capitol.py v4)
+  var CAPITOL_POSTNUKE_OPEN_MASK = [0.64, 0.627, 0.627, 0.64, 0.64, 0.681, 0.633, 0.637, 0.521, 0.521, 0.56, 0.56, 0.615, 0.615, 0.802, 0.615, 0.617, 0.56, 0.56, 0.521, 0.521, 0.637, 0.633, 0.681, 0.64, 0.64, 0.627, 0.656, 0.637, 0.633, 0.61, 0.608, 0.608, 0.562, 0.581, 0.54, 0.56, 0.721, 0.721, 0.721, 0.721, 0.721, 0.604, 0.598, 0.598, 0.585, 0.596, 0.585, 0.581, 0.594, 0.558, 0.577, 0.562, 0.556, 0.537, 0.533, 0.506, 0.492, 0.215, 0.227, 0.244, 0.252, 0.233, 0.244, 0.237, 0.227, 0.235, 0.235, 0.208, 0.202, 0.379, 0.4, 0.469, 0.477, 0.504, 0.517, 0.521, 0.51, 0.523, 0.54, 0.537, 0.542, 0.556, 0.565, 0.571, 0.569, 0.567, 0.577, 0.581, 0.588, 0.594, 0.598, 0.602, 0.721, 0.721, 0.721, 0.602, 0.604, 0.721, 0.606, 0.613, 0.613, 0.621, 0.583, 0.217, 0.571, 0.6, 0.606, 0.115, 0.629, 0.66, 0.66, 0.629, 0.115, 0.606, 0.6, 0.571, 0.217, 0.583, 0.621, 0.613, 0.613, 0.606, 0.721, 0.604, 0.602, 0.721, 0.721];
+  function capitolGreenK54(state, c, t) {
+    function rnd(a, b) { return a + Math.random() * Math.max(0, b - a); }
+    var gMin = c.bossBgCapitolGreenGapMinSec != null ? c.bossBgCapitolGreenGapMinSec : 0.35;
+    var gMax = c.bossBgCapitolGreenGapMaxSec != null ? c.bossBgCapitolGreenGapMaxSec : 2.2;
+    var oMin = c.bossBgCapitolGreenOnMinSec != null ? c.bossBgCapitolGreenOnMinSec : 0.05;
+    var oMax = c.bossBgCapitolGreenOnMaxSec != null ? c.bossBgCapitolGreenOnMaxSec : 0.4;
+    var popP = c.bossBgCapitolGreenPopChance != null ? c.bossBgCapitolGreenPopChance : 0.8;
+    var stut = c.bossBgCapitolGreenStutterChance != null ? c.bossBgCapitolGreenStutterChance : 0.25;
+    var alpha = c.bossBgCapitolGreenAlpha != null ? c.bossBgCapitolGreenAlpha : 1.0;
+    var g = state._capG;
+    if (!g || t < g.t0 - 0.05 || t - g.t0 > 30) g = state._capG = { on: false, t0: t, until: t + rnd(gMin, gMax) };
+    var guard = 0;
+    while (t >= g.until && guard++ < 50) {
+      g.t0 = g.until;
+      if (g.on) { g.on = false; g.until = g.t0 + rnd(gMin, gMax); }
+      else if (Math.random() < popP) { g.on = true; g.until = g.t0 + rnd(oMin, oMax); }
+      else { g.until = g.t0 + rnd(gMin, gMax); }                      // skipped pop -> irregular rhythm
+    }
+    if (!g.on) return 0;
+    if (Math.random() < stut) return 0;                                // stutter-out frame
+    return Math.max(0, Math.min(1, alpha));
+  }
+  // sega54: dome-reveal timing (the Capitol dome is the alien's skull: cracks -> burst -> brain rises out as the boss)
+  function domeReveal54(state) {
+    var c = state.config || {};
+    var on = c.bossDomeRevealOn !== false && c.bossBgCapitolOn !== false;
+    var cs = c.bossDomeCrackStartSec != null ? c.bossDomeCrackStartSec : 185.22;
+    var cd = Math.max(0.1, c.bossDomeCrackDurSec != null ? c.bossDomeCrackDurSec : 1.6);
+    var burst = cs + cd;
+    var rs = c.bossRiseFromDomeSec != null ? c.bossRiseFromDomeSec : burst + 0.15;
+    var rd = Math.max(0.2, c.bossRiseDurSec != null ? c.bossRiseDurSec : 2.5);
+    var pg = c.bossDomePreGlowStartSec != null ? c.bossDomePreGlowStartSec : 184.6;
+    return { on: on, crackStart: cs, crackDur: cd, burst: burst, riseStart: rs, riseDur: rd,
+      preGlowOn: c.bossDomePreGlowOn !== false, preGlow: pg };
+  }
+  // sega54: fire colour-cycling + crack overlays, built once from the 320x120 masks (R = phase/order, G = level)
+  var FIRE_CYCLE_PALS = {
+    fire: { hot: ["#fff0a0", "#ffd060", "#ffb040", "#ff8a2a", "#ffb040", "#ffd060", "#fff6c0", "#ffe080"],
+            edge: ["#c2261a", "#ff5a1a", "#ff8a2a", "#ffb040", "#ff6a1a", "#d4461a", "#8a1a10", "#e03a14"] },
+    toxic: { hot: ["#f0ffb0", "#d8ff60", "#b0ff40", "#7aff3a", "#b0ff40", "#d8ff60", "#f6ffd0", "#e0ff80"],
+            edge: ["#1a8a1a", "#3ac21a", "#6aff2a", "#b0ff40", "#5ae02a", "#2aa01a", "#0e5a10", "#46d41a"] },
+    plasma: { hot: ["#ffe0ff", "#ff9ef0", "#ff4fd0", "#d04dff", "#ff4fd0", "#ff9ef0", "#fff0ff", "#ffc0f8"],
+            edge: ["#5a1a8a", "#8a2ad0", "#b04dff", "#ff4fd0", "#a03ae0", "#6a1aa0", "#3a0a5a", "#c040f0"] }
+  };
+  function maskPixels54(img) {
+    if (!img || !(img.width > 0) || typeof document === "undefined") return null;
+    if (img._px54) return img._px54;
+    try {
+      var cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+      var cx = cv.getContext("2d"); cx.drawImage(img, 0, 0);
+      img._px54 = { w: img.width, h: img.height, d: cx.getImageData(0, 0, img.width, img.height).data };
+    } catch (e) { img._px54 = null; }
+    return img._px54;
+  }
+  function hexRgb54(h) { h = h.replace("#", ""); return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)]; }
+  function fireCycleFrame54(state, palName, step) {
+    var m = maskPixels54((state._capitolFx || {}).fire);
+    if (!m) return null;
+    var cache = state._fireCyc54 || (state._fireCyc54 = {});
+    var key = palName + ":" + step;
+    if (cache[key]) return cache[key];
+    var pal = FIRE_CYCLE_PALS[palName] || FIRE_CYCLE_PALS.fire, N = pal.hot.length;
+    var hot = pal.hot.map(hexRgb54), edge = pal.edge.map(hexRgb54);
+    var cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
+    var cx = cv.getContext("2d"), id = cx.createImageData(m.w, m.h), o = id.data, i;
+    for (i = 0; i < m.w * m.h; i++) {
+      var ph = m.d[i * 4], lv = m.d[i * 4 + 1];
+      if (!ph) continue;
+      var col = (lv >= 3 ? hot : edge)[((ph - 1) + step) % N];
+      o[i * 4] = col[0]; o[i * 4 + 1] = col[1]; o[i * 4 + 2] = col[2]; o[i * 4 + 3] = 255;
+    }
+    cx.putImageData(id, 0, 0);
+    cache[key] = cv;
+    return cv;
+  }
+  function crackFrame54(state, green, k) {   // k = 1..8 (progress eighths)
+    var m = maskPixels54((state._capitolFx || {}).crack);
+    if (!m) return null;
+    var cache = state._crackCyc54 || (state._crackCyc54 = {});
+    var key = (green ? "g" : "f") + k;
+    if (cache[key]) return cache[key];
+    var core = hexRgb54(green ? "#f0ffb0" : "#fff0a0"), rim = hexRgb54(green ? "#6aff2a" : "#ff8a2a");
+    var lim = Math.round(255 * k / 8), maxO = 0, i;
+    for (i = 0; i < m.w * m.h; i++) if (m.d[i * 4] > maxO) maxO = m.d[i * 4];
+    lim = Math.round(maxO * k / 8);
+    var cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
+    var cx = cv.getContext("2d"), id = cx.createImageData(m.w, m.h), o = id.data;
+    for (i = 0; i < m.w * m.h; i++) {
+      var ov = m.d[i * 4];
+      if (!ov || ov > lim) continue;
+      var col = (lim - ov < maxO * 0.12) ? core : rim;   // freshest crack tips burn white-hot
+      o[i * 4] = col[0]; o[i * 4 + 1] = col[1]; o[i * 4 + 2] = col[2]; o[i * 4 + 3] = 255;
+    }
+    cx.putImageData(id, 0, 0);
+    cache[key] = cv;
+    return cv;
+  }
+  function blockyEllipse54(ctx, cx, cy, rx, ry, step) {
+    step = Math.max(1, step);
+    for (var y = -ry; y <= ry; y += step) {
+      var w = rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry)));
+      w = Math.floor(w / step) * step;
+      if (w > 0) ctx.fillRect(Math.round((cx - w) / step) * step, Math.round((cy + y) / step) * step, 2 * w, step);
+    }
+  }
+  // draws the per-layer Capitol fx (fire cycle, crack progress, burst flash + falling chunks) in the layer's space
+  // sega54: retro 8-bit pixel fonts for all canvas text (uiFontTitle / uiFontBody / uiFontScale cells);
+  // Press Start 2P sizes snapped to its 8-px grid (x0.62: it is ~1.8x wider than the old Impact/Trebuchet)
+  function pixFont54(state, px, kind) {
+    var c = (state && state.config) || {}, sc = c.uiFontScale != null ? +c.uiFontScale : 1;
+    if (kind === "body") return Math.max(14, Math.round(px * 1.3 * sc / 2) * 2) + "px " + (c.uiFontBody || '"VT323", "Courier New", monospace');
+    return Math.max(8, Math.round(px * 0.62 * sc / 8) * 8) + "px " + (c.uiFontTitle || '"Press Start 2P", "Courier New", monospace');
+  }
+  function drawCapitolFx54(state, ctx, key, r, img54) {
+    if (!r || key.indexOf("capitol-") !== 0) return;
+    var c = state.config || {};
+    var t = state.songClock != null ? state.songClock : 0;
+    var green = key.indexOf("capitol-green") === 0;
+    var prevSm = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    if (c.bossFireCycleOn !== false) {
+      var pn = c.bossFireCyclePalette || "auto";
+      if (pn === "auto") pn = green ? "toxic" : "fire";
+      var sp = c.bossFireCycleSpeed != null ? c.bossFireCycleSpeed : 10;
+      var fr = fireCycleFrame54(state, pn, Math.floor(t * sp) % 8);
+      if (fr) ctx.drawImage(fr, r.x, r.y, r.w, r.h);
+    }
+    var dv = domeReveal54(state);
+    var ppx = r.w / 1280;                                   // plate px -> layer px
+    var dX = r.x + 640 * ppx, dY = r.y + (c.bossDomeCavityY != null ? c.bossDomeCavityY : 138) * ppx;
+    // sega54: pre-burst — the dome (skull) VIBRATES and the brain's purple glow FLASHES out through/around it
+    var vibOn = dv.on && dv.preGlowOn && t >= dv.preGlow && t < dv.burst;
+    var vx = 0, vy = 0, ramp = 0;
+    if (vibOn) {   // sega54: one vibration offset per layer per frame, shared by the dome crop, glow AND the cracks
+      ramp = Math.min(1, (t - dv.preGlow) / Math.max(0.1, dv.burst - dv.preGlow));
+      var vpx = (c.bossDomeVibratePx != null ? c.bossDomeVibratePx : 3) * (0.4 + 0.6 * ramp);
+      var vhz = c.bossDomeVibrateHz != null ? c.bossDomeVibrateHz : 22;
+      vx = Math.round(Math.sin(t * vhz * 6.283) * vpx + (Math.random() * 2 - 1) * vpx * 0.5);
+      vy = Math.round(Math.cos(t * vhz * 4.9) * vpx * 0.5);
+    }
+    if (vibOn && img54) {
+      // redraw the dome crop of the plate, offset (plate px 560..720 x 20..250)
+      try { ctx.drawImage(img54, 560, 20, 160, 230, r.x + (560 + vx) * ppx, r.y + (20 + vy) * ppx, 160 * ppx, 230 * ppx); } catch (eV) {}
+      var fhz = c.bossDomePreGlowFlashHz != null ? c.bossDomePreGlowFlashHz : 129 / 60 * 2;
+      var fl = Math.pow(Math.max(0, Math.sin(t * fhz * Math.PI)), 8);    // sharp flashes
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha *= Math.min(1, (0.25 + 0.75 * ramp) * (0.2 + 0.8 * fl));
+      ctx.fillStyle = green ? "#6aff3a" : "#b04dff";
+      blockyEllipse54(ctx, dX + vx * ppx, dY - 40 * ppx, (70 + 30 * fl) * ppx, (72 + 24 * fl) * ppx, 4 * ppx);
+      ctx.fillStyle = green ? "#d8ff90" : "#ff6fe8";
+      blockyEllipse54(ctx, dX + vx * ppx, dY - 38 * ppx, 40 * ppx, 50 * ppx, 4 * ppx);
+      ctx.restore();
+    }
+    if (dv.on && t >= dv.crackStart && t < dv.burst) {
+      var k = Math.max(1, Math.min(8, Math.ceil(((t - dv.crackStart) / dv.crackDur) * 8)));
+      var ck = crackFrame54(state, green, k);
+      // glow swells behind the cracks, then the cracks themselves
+      var gA = 0.15 + 0.5 * ((t - dv.crackStart) / dv.crackDur);
+      ctx.save();
+      ctx.globalAlpha *= gA * (0.8 + 0.2 * Math.sin(t * 40));
+      ctx.fillStyle = green ? "#7aff3a" : "#ff8a2a";
+      blockyEllipse54(ctx, dX + vx * ppx, dY + (vy - 14) * ppx, 50 * ppx, 40 * ppx, 4 * ppx);
+      ctx.restore();
+      if (ck) ctx.drawImage(ck, r.x + vx * ppx, r.y + vy * ppx, r.w, r.h);   // cracks shake with the dome
+    }
+    if (dv.on && !green && t >= dv.burst && t < dv.burst + 2.2) {
+      var bt = t - dv.burst;
+      // burst flash (pink/white, blocky)
+      if (bt < 0.5) {
+        ctx.save();
+        ctx.globalAlpha *= (1 - bt / 0.5);
+        ctx.fillStyle = "#ffd0f4"; var fw = (60 + bt * 200) * ppx;
+        blockyEllipse54(ctx, dX, dY - fw * 0.2, fw, fw * 0.7, 4 * ppx);
+        ctx.fillStyle = "#ffffff"; blockyEllipse54(ctx, dX, dY - fw * 0.2, fw * 0.45, fw * 0.32, 4 * ppx);
+        ctx.restore();
+      }
+      // falling chunks of dome (deterministic): pieces fly up/out, then fall, snapped to the 4-px Sega grid
+      var n = Math.max(0, c.bossDomeChunkCount != null ? c.bossDomeChunkCount : 18), i2;
+      var cols = ["#d8b890", "#9a7a5a", "#e6cfb4", "#3a1a10", "#ffb040"];
+      for (i2 = 0; i2 < n; i2++) {
+        var h1 = Math.sin(i2 * 12.9898) * 43758.5453; h1 -= Math.floor(h1);
+        var h2 = Math.sin(i2 * 78.233) * 12345.678; h2 -= Math.floor(h2);
+        var vx = (h1 * 2 - 1) * 170, vy = -(120 + h2 * 220), g = 520;
+        var px = 640 + (h1 * 2 - 1) * 30 + vx * bt, py = 128 + vy * bt + 0.5 * g * bt * bt;
+        if (py > 400) continue;
+        var sz = 4 * (1 + Math.floor(h2 * 3));
+        ctx.fillStyle = cols[i2 % cols.length];
+        ctx.fillRect(r.x + Math.round(px / 4) * 4 * ppx, r.y + Math.round(py / 4) * 4 * ppx, sz * ppx, sz * ppx);
+      }
+    }
+    ctx.imageSmoothingEnabled = prevSm;
+  }
+
+  // sega54: erratic jolt for the green Capitol layer (fiery base stays steady): new random offset every JumpEverySec,
+  // +/- JumpPxX/Y (canvas px), scale 1 +/- ScaleJitter around the horizon anchor.
+  function capitolJolt54(state, key) {
+    if (key !== "capitol-green") return null;
+    var c = state.config || {};
+    var t = state.songClock != null ? state.songClock : 0;
+    var ev = Math.max(0.016, c.bossBgCapitolJumpEverySec != null ? c.bossBgCapitolJumpEverySec : 0.05);
+    var j = state._capJ;
+    if (!j || t >= j.next || t < j.next - ev * 4) {
+      var px = c.bossBgCapitolJumpPxX != null ? c.bossBgCapitolJumpPxX : 18;
+      var py = c.bossBgCapitolJumpPxY != null ? c.bossBgCapitolJumpPxY : 10;
+      var sj = c.bossBgCapitolScaleJitter != null ? c.bossBgCapitolScaleJitter : 0.04;
+      j = state._capJ = { next: t + ev * (0.5 + Math.random()), x: (Math.random() * 2 - 1) * px, y: (Math.random() * 2 - 1) * py,
+        s: 1 + (Math.random() * 2 - 1) * sj };
+    }
+    return j;
+  }
+
   // Returns [{img, a, key}] bottom → top.
   function computeBgMix(state) {
     var c = state.config || {};
     var t = state.songClock != null ? state.songClock : 0;
     if (state.postNukeFire) {
+      // sega54: BOSS STAGE Capitol — fiery plate steady as the base, radioactive-green twin flickers in (and jolts)
+      state._capitolBossActive = false; state._capitolOpen54 = false;
+      if (c.bossBgCapitolOn !== false) {
+        var cpS = c.bossBgCapitolStartSec != null ? c.bossBgCapitolStartSec : 184.0; // sega54: intact dome seen first
+        var cpE = c.bossBgCapitolEndSec != null ? c.bossBgCapitolEndSec : 999;
+        var cpF = stripImg(state, "capitol-fire");
+        if (cpF && t >= cpS && t < cpE) {
+          state._capitolBossActive = true;
+          var cpG = stripImg(state, "capitol-green");
+          // sega54: dome reveal — after the burst the dome stays broken open (fiery + green open twins)
+          var dRv = domeReveal54(state);
+          if (dRv.on && t >= dRv.burst) {
+            var cpFo = stripImg(state, "capitol-fire-open"), cpGo = stripImg(state, "capitol-green-open");
+            if (cpFo) { cpF = cpFo; state._capitolOpen54 = true; }
+            if (cpGo) cpG = cpGo;
+            else if (cpFo) cpG = null;   // never pop the INTACT green twin over the open dome
+          }
+          var gk = cpG ? capitolGreenK54(state, c, t) : 0;
+          return gk > 0 ? [{ img: cpF, a: 1, key: "capitol-fire" }, { img: cpG, a: gk, key: "capitol-green" }]
+            : [{ img: cpF, a: 1, key: "capitol-fire" }];
+        }
+      }
       var keys = c.postNukeFirePlates || ["dusk", "acid"];
       var A = stripImg(state, keys[0]);
       var B = stripImg(state, keys[1] || keys[0]);
@@ -468,7 +707,16 @@
       var gbUntil = c.greenbeltPinUntilSec != null ? c.greenbeltPinUntilSec : 92.0;
       var vFrom = stripImg(state, c.bgHoldingCrossfadeFrom || "dusk-clean");
       var vTo = stripImg(state, c.bgHoldingCrossfadeTo || "violet");
-      if (hcOn && t >= hcS && t < hcE && vFrom) {
+      // sega54 build: PHOTO set — verse 1 = night-synthwave plate until photoNightUntilSec (40.2), cross-fading into the
+      // orange plate over the last photoNightFadeSec; then the orange -> violet holding cross-fade below.
+      var phN = c.photoPlatesOn !== false ? stripImg(state, "night-synth") : null;
+      var phU = c.photoNightUntilSec != null ? c.photoNightUntilSec : 40.2;
+      if (phN && t < phU) {
+        var phF = Math.max(0, c.photoNightFadeSec != null ? c.photoNightFadeSec : 2.0);
+        var phK = phF > 0 ? smoothstep01((t - (phU - phF)) / phF) : 0;
+        tl = (vFrom && phK > 0) ? [{ img: phN, a: 1, key: "night-synth" }, { img: vFrom, a: phK, key: c.bgHoldingCrossfadeFrom || "dusk-clean" }]
+          : [{ img: phN, a: 1, key: "night-synth" }];
+      } else if (hcOn && t >= hcS && t < hcE && vFrom) {
         var hk = (t - hcS) / Math.max(0.05, hcE - hcS);
         hk = c.bgHoldingCrossfadeEase === "linear" ? Math.max(0, Math.min(1, hk)) : smoothstep01(hk);
         tl = vTo ? [{ img: vFrom, a: 1, key: c.bgHoldingCrossfadeFrom || "dusk-clean" }, { img: vTo, a: hk, key: c.bgHoldingCrossfadeTo || "violet" }]
@@ -482,9 +730,23 @@
         tl = (vImg && gk < 1) ? [{ img: vImg, a: 1, key: "violet" }, { img: gImg, a: gk, key: "greenbelt" }]
           : [{ img: gImg, a: 1, key: "greenbelt" }];
       }
+      // sega54: post-tunnel Austin plate (free-licence skyline photo, Sega-pixelated) replaces green-clean from the
+      // white-out (snap, hidden by the white) until postTunnelDawnEndSec, then crossfades into violet.
+      if (!tl && c.postTunnelDawnOn !== false) {
+        var dwImg = stripImg(state, "austin-free");
+        var dwS = c.postTunnelDawnStartSec != null ? c.postTunnelDawnStartSec : 106.82;
+        var dwE = c.postTunnelDawnEndSec != null ? c.postTunnelDawnEndSec : 120.5;
+        var dwF = Math.max(0, c.postTunnelDawnFadeSec != null ? c.postTunnelDawnFadeSec : 1.5);
+        if (dwImg && t >= dwS && t < dwE + dwF) {
+          var dwTo = stripImg(state, "violet");
+          if (t < dwE || !dwTo || !(dwF > 0)) tl = [{ img: dwImg, a: 1, key: "austin-free" }];
+          else tl = [{ img: dwImg, a: 1, key: "austin-free" }, { img: dwTo, a: smoothstep01((t - dwE) / dwF), key: "violet" }];
+        }
+      }
       if (tl) { if (state._bgMixState) state._bgMixState.img = null; return tl; }
     }
     var key = state.austinBgPlate || (c.austinBgFastStripCritical || ["dusk-clean"])[0];
+    if (c.photoPlatesOn !== false && (state.phase === "menu" || state.phase === "countdown") && stripImg(state, "night-synth")) key = "night-synth"; // sega54
     if (PRE_NUKE_KEYS.indexOf(key) < 0) key = "dusk-clean"; // fiery / legacy never pre-nuke
     var pick = nearestLoadedStrip(state, key, false);
     if (!pick) return [];
@@ -548,6 +810,7 @@
   function postNukeBgShake(state) {
     var c = state.config || {};
     if (!state.postNukeFire || c.postNukeBgShakeEnabled === false) return null;
+    if (state._capitolBossActive && c.bossBgCapitolSteadyBase !== false) return null; // sega54: fiery Capitol stays steady
     var t = state.songClock != null ? state.songClock : 0;
     var sh = state._bgShake || (state._bgShake = { next: t + 0.5, until: -1 });
     if (t < sh.until - 30 || t > sh.next + 30) { sh.next = t + 0.5; sh.until = -1; } // seek guard
@@ -633,12 +896,59 @@
     state._bgZoom = z0 + (z1 - z0) * Math.max(0, Math.min(1, u));
   }
 
+  // sega54: skyline mask for the post-tunnel Austin plate (free-licence photo, Sega-pixelated) (128 cols, fraction of plate height where the skyline starts)
+  var AUSTIN_FREE_SKYLINE_MASK = [0.283, 0.283, 0.283, 0.283, 0.292, 0.475, 0.475, 0.475, 0.467, 0.475, 0.475, 0.475, 0.475, 0.483, 0.492, 0.492, 0.492, 0.708, 0.708, 0.433, 0.433, 0.425, 0.417, 0.408, 0.442, 0.458, 0.658, 0.658, 0.683, 0.7, 0.708, 0.717, 0.775, 0.775, 0.767, 0.733, 0.717, 0.733, 0.775, 0.692, 0.475, 0.117, 0.058, 0.05, 0.05, 0.042, 0.042, 0.05, 0.058, 0.067, 0.125, 0.225, 0.275, 0.275, 0.283, 0.417, 0.45, 0.65, 0.658, 0.483, 0.458, 0.442, 0.433, 0.417, 0.417, 0.417, 0.408, 0.383, 0.383, 0.492, 0.492, 0.492, 0.492, 0.492, 0.5, 0.5, 0.508, 0.5, 0.5, 0.492, 0.475, 0.475, 0.483, 0.492, 0.483, 0.433, 0.342, 0.292, 0.275, 0.267, 0.25, 0.242, 0.242, 0.308, 0.442, 0.45, 0.5, 0.483, 0.483, 0.5, 0.492, 0.492, 0.617, 0.617, 0.55, 0.45, 0.45, 0.442, 0.45, 0.475, 0.6, 0.608, 0.608, 0.608, 0.625, 0.675, 0.675, 0.675, 0.675, 0.65, 0.65, 0.65, 0.675, 0.7, 0.683, 0.675, 0.683, 0.683];
+  // sega54: horizontal pan of a cover-cropped plate (0 = left edge, 0.5 = centred, 1 = right edge); px shift in band space
+  function platePanPx54(state, key, img, width, height, cfgBg) {
+    if (key !== "austin-free" || !img || !(img.width > 0)) return 0;
+    var c = state.config || {};
+    var ax = c.postTunnelDawnPanX != null ? c.postTunnelDawnPanX : 0.5;
+    if (ax === 0.5) return 0;
+    var hF = cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55;
+    var sc = Math.max(width / img.width, Math.max(1, height * hF) / img.height) * (cfgBg.austinBgSingleScale != null ? cfgBg.austinBgSingleScale : 1);
+    var slack = Math.max(0, img.width * sc - width);
+    return (0.5 - Math.max(0, Math.min(1, ax))) * slack;
+  }
+
   function skylineTopsFor(state, key) {
     var m = (state.config && state.config.skylineMask) || {};
+    // sega54 build: PHOTO plate set -> its own skyline masks (same keys)
+    var mp = (state.config && state.config.photoPlatesOn !== false && state.config.skylineMaskPhoto) || null;
+    if (mp) {
+      if (key === "night-synth") return mp["night-synth"] || null;
+      if (key === "dusk-clean" || key === "violet") return mp.clean || null;
+      if (key === "dusk" || key === "acid" || key === "greenbelt") return mp[key] || null;
+    }
     if (key === "dusk" || key === "ember") return m.dusk || null;
     if (key === "acid") return m.acid || null;
     if (key === "greenbelt") return m.greenbelt || m.clean || null; // sega52
+    if (key.indexOf("capitol-") === 0) return state._capitolOpen54 ? (m.capitolPostnukeOpen || CAPITOL_POSTNUKE_OPEN_MASK)
+      : (m.capitolPostnuke || CAPITOL_POSTNUKE_MASK); // sega54: open mask once the dome has burst
+    if (key === "austin-free") return m.austinFreeSkyline || AUSTIN_FREE_SKYLINE_MASK; // sega54 (default until config bake)
     return m.clean || null;
+  }
+
+  // sega54: slow per-plate zoom factor (1 = none)
+  function plateZoom54(state, key) {
+    var c = state.config || {};
+    // sega54: boss Capitol plates cancel the global distance zoom (dome + brain spawn stay fully in the band)
+    if (key && key.indexOf("capitol-") === 0 && c.bossBgCapitolUnzoom !== false) return 1 / Math.max(0.5, state._bgZoom || 1);
+    if (state.postNukeFire || state.phase !== "running") return 1;
+    var t = state.songClock != null ? state.songClock : 0;
+    function ramp(s0, e0, to) {
+      var u = Math.max(0, Math.min(1, (t - s0) / Math.max(0.05, e0 - s0)));
+      return 1 + (to - 1) * (u * u * (3 - 2 * u));
+    }
+    var pinUntil = c.greenbeltPinUntilSec != null ? c.greenbeltPinUntilSec : 92.0;
+    if ((key === "dusk-clean" || key === "violet" || key === "prev") && c.bgVioletZoomOn !== false && t < pinUntil) {
+      return ramp(c.bgVioletZoomStartSec != null ? c.bgVioletZoomStartSec : 40.2,
+        c.bgVioletZoomEndSec != null ? c.bgVioletZoomEndSec : 59.0, c.bgVioletZoomTo != null ? c.bgVioletZoomTo : 1.15);
+    }
+    if (key === "greenbelt" && c.greenbeltZoomOn !== false) {
+      return ramp(c.greenbeltZoomStartSec != null ? c.greenbeltZoomStartSec : 59.0,
+        c.greenbeltZoomEndSec != null ? c.greenbeltZoomEndSec : 81.5, c.greenbeltZoomTo != null ? c.greenbeltZoomTo : 1.30);
+    }
+    return 1;
   }
 
   // Draw the mixed Austin plates into the band; then the sky storm inside the skyline sky mask.
@@ -674,13 +984,35 @@
       }
     }
     state._startBgFadeK = baseA;
+    // sega54: per-plate slow zoom (horizon-anchored like the skyline zoom): dusk-clean/violet 1 -> bgVioletZoomTo over
+    // bgVioletZoomStartSec..EndSec (held until the tunnel), greenbelt 1 -> greenbeltZoomTo over greenbeltZoomStartSec..EndSec.
+    var zTop = 1, zTopA = -1;
     for (i = 0; i < mix.length; i++) {
       if (!(mix[i].a > 0.003)) continue;
       ctx.globalAlpha = baseA * Math.min(1, mix[i].a);
-      r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff);
+      var pz = plateZoom54(state, mix[i].key);
+      if (mix[i].a > zTopA) { zTopA = mix[i].a; zTop = pz; }
+      var pnx = platePanPx54(state, mix[i].key, mix[i].img, width, height, cfgBg);
+      var jolt = capitolJolt54(state, mix[i].key);
+      if (jolt) { pz *= jolt.s; }
+      var jx = jolt ? jolt.x : 0, jy = jolt ? jolt.y : 0;
+      if (pz !== 1 || jolt) { ctx.save(); ctx.translate(width / 2 + jx, anchorY + jy); ctx.scale(pz, pz); ctx.translate(-width / 2, -anchorY); }
+      r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff, pnx);
+      if (r && mix[i].key.indexOf("capitol-") === 0) {
+        drawCapitolFx54(state, ctx, mix[i].key, r, mix[i].img);
+        if (mix[i].key.indexOf("capitol-fire") === 0) {   // dome cavity in screen px (for the boss rise hand-off)
+          var dcY = (cfgPz.bossDomeCavityY != null ? cfgPz.bossDomeCavityY : 138);
+          var lx = width / 2 + (r.x + r.w * 0.5 - width / 2) * pz, ly = anchorY + (r.y + r.h * (dcY / 480) - anchorY) * pz;
+          state._capitolDomeXY = { x: width / 2 + offX + (lx - width / 2) * zsc, y: anchorY + offY + (ly - anchorY) * zsc,
+            ppx: (r.w / 1280) * zsc * pz };
+        }
+      }
+      if (pz !== 1 || jolt) ctx.restore();
+      if (jolt) r = null; // the lightning clip rect follows the steady fiery base, not the jolting green
       if (r) rect = r;
     }
     ctx.globalAlpha = baseA;
+    state._plateZoom54 = zTop;
     // sky storm (party-crash 28.02 / final boss) — only above the skyline silhouette
     if (rect && state._skyStormMode && ns.Sega31x && ns.Sega31x.drawSkyStorm) {
       var tops = null, j, tj;
@@ -692,8 +1024,10 @@
         else for (j = 0; j < tops.length && j < tj.length; j++) tops[j] = Math.min(tops[j], tj[j]);
       }
       ctx.save();
+      // sega54: the lightning mask follows the (dominant) plate's zoom
+      if (zTop !== 1) { ctx.translate(width / 2, anchorY); ctx.scale(zTop, zTop); ctx.translate(-width / 2, -anchorY); }
       // sega48: skyline clip cached as a Path2D per (plates, rect) instead of rebuilt every frame
-      var clipKey = mix.map(function(m) { return m.a > 0.01 ? m.key : ""; }).join("|") + "@" + Math.round(rect.x) + "," + Math.round(rect.y) + "," + Math.round(rect.w) + "," + Math.round(rect.h);
+      var clipKey = mix.map(function(m) { return m.a > 0.01 ? m.key : ""; }).join("|") + (state._capitolOpen54 ? "#open" : "") + "@" + Math.round(rect.x) + "," + Math.round(rect.y) + "," + Math.round(rect.w) + "," + Math.round(rect.h);
       var cc = state._skyClipCache;
       if (typeof Path2D !== "undefined" && cc && cc.key === clipKey) { ctx.clip(cc.path); }
       else if (typeof Path2D !== "undefined" && tops && tops.length) {
@@ -795,7 +1129,7 @@
     } catch (e) { return null; }
   }
 
-  function drawBgSingleLayer(ctx, background, width, height, cfg, scrollOffset) {
+  function drawBgSingleLayer(ctx, background, width, height, cfg, scrollOffset, panPx) {
     if (!background || !(background.width > 0)) return;
     var yFrac = cfg.austinBgSingleYFrac != null ? cfg.austinBgSingleYFrac : 0;
     var hFrac = cfg.austinBgSingleHFrac != null ? cfg.austinBgSingleHFrac : 0.55;
@@ -856,6 +1190,7 @@
       dx = (bandW - dw) / 2;
       dy = bandY + (bandH - dh) / 2;
     }
+    if (panPx) dx += panPx; // sega54: per-plate horizontal crop (clip stays on the band)
     // sega31x: slow city scroll — tile horizontally when scroll enabled
     // sega41: full austin-new plates are NOT seamless — NEVER wrap/tile (hard vertical seam).
     // Atlas TREES strip still parallax-scrolls; full PNG draws once cover-cropped in band.
@@ -922,7 +1257,7 @@
     ctx.globalAlpha = alpha;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "900 " + fontPx + "px Impact, Haettenschweiler, Arial Black, Trebuchet MS, sans-serif";
+    ctx.font = pixFont54(state, fontPx, "title");
     ctx.lineJoin = "round";
     ctx.miterLimit = 2;
     ctx.shadowColor = glow;
@@ -970,7 +1305,7 @@
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = "900 " + Math.floor(width * 0.085) + "px Trebuchet MS, sans-serif";
+    ctx.font = pixFont54(state, Math.floor(width * 0.085), "title");
     ctx.fillStyle = state.winBanner ? "#7dffef" : "#ff4d8d";
     ctx.shadowColor = state.winBanner ? "#ff2d55" : "#ffe066";
     ctx.shadowBlur = 22;
@@ -988,7 +1323,7 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var fs = Math.floor(width * 0.078);
-    ctx.font = "900 " + fs + "px Impact, Haettenschweiler, Arial Black, sans-serif";
+    ctx.font = pixFont54(state, fs, "title");
     ctx.fillStyle = "#ff1a1a";
     ctx.strokeStyle = "#3a0000";
     ctx.lineWidth = Math.max(3, Math.floor(fs * 0.08));
@@ -1409,6 +1744,18 @@ function renderWorld(state) {
     var worldAlpha = state.worldFade == null ? 1 : state.worldFade;
 
     ctx.clearRect(0, 0, width, height);
+    // sega54: win star background (behind everything) + the horizon drop (Austin plate + ground band translated down)
+    var winStarK54 = state._winStarK || 0;
+    var winDropPx54 = Math.round((state._winHorizonDrop || 0) * height);
+    if (winStarK54 > 0.001 && !state.inTunnel) {
+      ctx.save();
+      ctx.fillStyle = "#02010a";
+      ctx.fillRect(0, 0, width, height);
+      if (ns.Sega31x && ns.Sega31x.drawStarfield) ns.Sega31x.drawStarfield(state, ctx, width, height, 1);
+      ctx.restore();
+    }
+    var dropOn54 = false;
+    if (winDropPx54) { ctx.translate(0, winDropPx54); dropOn54 = true; }
 
     // sega32: roadAlwaysInFrontOfBg / roadNoBgFlashThrough — clip all Austin/psych/postnuke BG
     // to above horizon so BG never paints through road pixels (stable occlusion, no flash).
@@ -1531,11 +1878,13 @@ function renderWorld(state) {
     if (bgClipped) {
       ctx.restore(); // worldAlpha (nested inside clip)
       ctx.restore(); // clip
+      if (dropOn54) { ctx.translate(0, -winDropPx54); dropOn54 = false; } // sega54
       ctx.save();
       ctx.globalAlpha = worldAlpha;
       bgClipped = false;
     }
 
+    if (dropOn54) { ctx.translate(0, -winDropPx54); dropOn54 = false; } // sega54 (no bg clip path)
     // sega33: opaque roadside/ground fill under horizon so clip/clearRect never leaves
     // psych dither / garbage / flicker under the road (roadNoBgFlashThrough = solid under).
     if ((roadOverBg || cfgZ.roadNoBgFlashThrough !== false) && !state.inTunnel) {
@@ -1545,6 +1894,8 @@ function renderWorld(state) {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.fillStyle = underCol;
+      if (winDropPx54) ctx.translate(0, winDropPx54); // sega54: ground band sinks with the horizon
+      if (winStarK54 > 0.001) ctx.globalAlpha = Math.max(0, 1 - winStarK54); // sega54: ground band fades with the road
       ctx.fillRect(0, underY, width, Math.max(0, height - underY));
       ctx.restore();
       // re-apply worldAlpha for subsequent road/sprites
@@ -1591,6 +1942,12 @@ function renderWorld(state) {
     var clLook = Math.max(2, (state.config && state.config.curveLeanLookSegs) || 120);
     var clRefN = ((playerSegment.index - baseSegment.index) % state.segments.length + state.segments.length) % state.segments.length;
     var clX0 = null, clY0 = null, clX1 = null, clY1 = null;
+    // sega54: noRoadsideAfterBoss - no roadside sprites from the final boss start (noRoadsideFromSec) to the end of the song
+    var cfgRs54 = state.config || {};
+    var rsFrom54 = cfgRs54.noRoadsideFromSec != null ? cfgRs54.noRoadsideFromSec
+      : ((cfgRs54.finaleFight && cfgRs54.finaleFight.start != null) ? cfgRs54.finaleFight.start : 185.22);
+    var rsOffAfterBoss = cfgRs54.noRoadsideAfterBoss !== false && state.phase !== "menu" &&
+      (state.songClock != null ? state.songClock : 0) >= rsFrom54;
     for (n = 0; n < state.drawDistance; n++) {
       if (skipRoadSega31x || (ns.Sega31x && ns.Sega31x.shouldSkipRoad && ns.Sega31x.shouldSkipRoad(state))) {
         break;
@@ -1766,8 +2123,8 @@ function renderWorld(state) {
       }
 
       // sega34: hide roadside during tunnel approach clear / interior
-      if (state._tunnelHideRoadside) {
-        /* skip roadside sprites */
+      if (state._tunnelHideRoadside || rsOffAfterBoss) {
+        /* skip roadside sprites (sega54: also from the final boss start to the end) */
       } else for (i = 0; i < segment.sprites.length; i++) {
         sprite = segment.sprites[i];
         // sega24: section-tagged props only draw for matching sectionId
@@ -1835,7 +2192,7 @@ function renderWorld(state) {
       ctx.fillRect(0, 0, width, height);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = "900 " + Math.floor(width * 0.18) + "px Trebuchet MS, sans-serif";
+      ctx.font = pixFont54(state, Math.floor(width * 0.18), "title");
       ctx.fillStyle = "#ffffff";
       ctx.shadowColor = "#ff2d55";
       ctx.shadowBlur = 28;
@@ -2097,7 +2454,7 @@ function renderWorld(state) {
     }
     var ctx = state.ctx;
     ctx.save();
-    ctx.font = "bold 28px monospace";
+    ctx.font = pixFont54(state, 28, "title");
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(state.width / 2 - 70, 18, 140, 40);
@@ -2438,6 +2795,7 @@ function renderWorld(state) {
   }
 
   ns.Renderer = {
+    domeReveal54: domeReveal54, // sega54: boss rise hand-off (brains.js)
     render: function(state) {
       // sega43: nuke detonation screen shake (decays over blast window)
       var shake = nukeSegaShake(state);
