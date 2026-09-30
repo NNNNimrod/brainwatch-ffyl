@@ -86,7 +86,7 @@
     }
 
     // sega22: car collision debris chunks (keep Sega explosion below)
-    if (isCar) {
+    if (isCar && !(state && state._carCollisionFx && !(state.config && state.config.damageDebrisOn === true))) {
       spawnDebrisShards(state, x, y, mul);
     }
 
@@ -149,7 +149,7 @@
     try {
       spawnExplosion(state, x, y, kind, 1);
       // debris shards even if kind is sega/damage
-      if (kind !== "car") {
+      if (kind !== "car" && cfg.damageDebrisOn === true) { // sega55: damageDebrisOn (default false = no shards on car hits)
         spawnDebrisShards(state, x, y, sizeMul);
       }
     } finally {

@@ -335,6 +335,15 @@
     if (!SPRITES.LIFE) {
       return; // never fall through to car sprites
     }
+    // sega55: heartFrequencyMult (0.75 = 25% fewer hearts everywhere). The regular section timer stretches its interval
+    // (÷mult, opts.freqApplied); every other spawn (tutorial trio, sky offers, post-boss burst, win drop) is thinned
+    // deterministically: keep `mult` of every 1 spawn via an accumulator (0.75 -> 3 of every 4).
+    var hfm = (state.config && state.config.heartFrequencyMult != null) ? state.config.heartFrequencyMult : 0.75;
+    if (!opts.freqApplied && hfm < 1) {
+      state._heartFreqAcc = (state._heartFreqAcc != null ? state._heartFreqAcc : 0.5) + Math.max(0, hfm);
+      if (state._heartFreqAcc < 1) return;
+      state._heartFreqAcc -= 1;
+    }
     // sega41: never spawn centered over player — absolute random L/R (or explicit forceLane)
     var lane;
     if (opts.forceLane != null) {
@@ -478,7 +487,7 @@
       if (state.pickupSpawnTimer <= 0) {
         // sega31p: skip spawn while MAD MAX (timer still advances so we don't burst after)
         if (!heartsBlockedByMadMax(state)) {
-          spawnPickup(state);
+          spawnPickup(state, { freqApplied: true }); // sega55: frequency handled by the interval below
         }
         var interval = 9 + Math.random() * 8;
         // sega31k: heartSpawnRateMult (5× → interval ÷5)
@@ -488,6 +497,9 @@
         if (state.postBossHearts && state.config && state.config.postBossHeartSpawnRateMult != null) {
           rateMult *= state.config.postBossHeartSpawnRateMult;
         }
+        // sega55: heartFrequencyMult (0.75 -> interval ÷0.75)
+        var hfm2 = (state.config && state.config.heartFrequencyMult != null) ? state.config.heartFrequencyMult : 0.75;
+        if (hfm2 > 0) rateMult *= hfm2;
         if (rateMult > 0) interval = interval / rateMult;
         // sega31o: lane-swap section hearts × laneSwapHeartMult ON TOP of global ×5
         if (state.trafficLaneSwap) {

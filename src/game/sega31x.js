@@ -1436,6 +1436,8 @@
     if (!(mouthA > 0.002)) { state._tunnelMouthRect = { x: dx, y: dy, w: dw, h: dh, cx: dx + dw / 2, cy: dy + dh * 0.55 }; return; }
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    if (img._smooth54 == null) img._smooth54 = /-smooth\.(jpe?g|png)(\?|$)/i.test(img.src || ""); // sega55: smooth photo portal
+    if (img._smooth54) { ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = "high"; } catch (eSQ) {} }
     ctx.globalAlpha = Math.min(1, mouthA);
     ctx.drawImage(img, 0, 0, iw, srcH, dx, dy, dw, dh);
     ctx.restore();

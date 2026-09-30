@@ -66,10 +66,23 @@
     var bootCfg = state.config || ns.CONFIG || {};
     // sega54 build: PHOTO plate set (photoPlatesOn) — same keys, new paths; verse-1 night-synthwave is the first-load plate
     var photoOn = bootCfg.photoPlatesOn !== false;
-    var PHOTO_PATHS = photoOn ? { "night-synth": bootCfg.photoNightSynthPath, "dusk-clean": bootCfg.photoDuskCleanPath,
-      "violet": bootCfg.photoVioletPath, "greenbelt": bootCfg.photoGreenbeltPath, "dusk": bootCfg.photoPostnukeDuskPath,
-      "acid": bootCfg.photoPostnukeAcidPath } : {};
-    if (photoOn && bootCfg.photoTunnelPortalPath) bootCfg.tunnelEntranceAsset = bootCfg.photoTunnelPortalPath;
+    // sega55: photoPlatesSmooth -> untouched full-res photo plates (*-smooth.jpg); greenbeltPlateMode classic | photo | photo-smooth
+    var smOn = photoOn && bootCfg.photoPlatesSmooth !== false;
+    function pp(px, sm) { return (smOn && bootCfg[sm]) ? bootCfg[sm] : bootCfg[px]; }
+    var gbMode = bootCfg.greenbeltPlateMode || "classic";
+    var PHOTO_PATHS = photoOn ? { "night-synth": pp("photoNightSynthPath", "photoNightSynthSmoothPath"), "dusk-clean": pp("photoDuskCleanPath", "photoDuskCleanSmoothPath"),
+      "violet": pp("photoVioletPath", "photoVioletSmoothPath"), "dusk": pp("photoPostnukeDuskPath", "photoPostnukeDuskSmoothPath"),
+      "acid": pp("photoPostnukeAcidPath", "photoPostnukeAcidSmoothPath") } : {};
+    if (gbMode === "photo") PHOTO_PATHS.greenbelt = bootCfg.photoGreenbeltPath;
+    else if (gbMode === "photo-smooth") PHOTO_PATHS.greenbelt = bootCfg.photoGreenbeltSmoothPath || bootCfg.photoGreenbeltPath;
+    if (photoOn) { var tpp = pp("photoTunnelPortalPath", "photoTunnelPortalSmoothPath"); if (tpp) bootCfg.tunnelEntranceAsset = tpp; }
+    if (smOn && bootCfg.bossBgCapitolSmooth !== false) {   // sega55: Capitol boss plates are photo-based too
+      if (bootCfg.bossBgCapitolSmoothPath) bootCfg.bossBgCapitolPath = bootCfg.bossBgCapitolSmoothPath;
+      if (bootCfg.bossBgCapitolGreenSmoothPath) bootCfg.bossBgCapitolGreenPath = bootCfg.bossBgCapitolGreenSmoothPath;
+      if (bootCfg.bossBgCapitolOpenSmoothPath) bootCfg.bossBgCapitolOpenPath = bootCfg.bossBgCapitolOpenSmoothPath;
+      if (bootCfg.bossBgCapitolGreenOpenSmoothPath) bootCfg.bossBgCapitolGreenOpenPath = bootCfg.bossBgCapitolGreenOpenSmoothPath;
+    }
+    try { document.documentElement.classList.toggle("smooth-plates", smOn); } catch (eSm) {}
     var fastCritKeys = (bootCfg.austinBgFastStrips !== false && bootCfg.austinBgUseAustinNewPlates !== false)
       ? (photoOn && PHOTO_PATHS["night-synth"] ? ["night-synth"] : (bootCfg.austinBgFastStripCritical || ["dusk-clean"]).slice()) : [];
     // sega45: literal strip paths live in config.austinBgStripPaths (deploy scanner ships exactly these)
@@ -287,12 +300,22 @@
           deferredImg(cfg.postTunnelDawnLazyPrio != null ? cfg.postTunnelDawnLazyPrio : 72,
             (cfg.postTunnelDawnChoice === "blue")
               ? (cfg.postTunnelDawnPathBlue || "images/bg-austin-new/fast/background-austin-free.jpg")
-              : (cfg.postTunnelDawnPath || "images/bg-austin-new/fast/background-austin-free-dawn.jpg"), function(img) {
+              : ((cfg.postTunnelDawnSmooth !== false && cfg.postTunnelDawnSmoothPath) ? cfg.postTunnelDawnSmoothPath   // sega55: de-pixelated #9
+                : (cfg.postTunnelDawnPath || "images/bg-austin-new/fast/background-austin-free-dawn.jpg")), function(img) {
             if (!(img.width > 0)) return;
             img._austinStrip = true;
             img._austinKey = "austin-free";
             state.austinStrips["austin-free"] = img;
             state._austinNewPlatesReady["austin-free"] = "fast";
+          });
+        }
+
+        // sega55: diamond2 plate (120.5-155) = synthwave-graded free-licence skyline (was violet) — behind diamond2PlateOn
+        if (cfg.diamond2PlateOn !== false && cfg.diamond2PlatePath && cfg.austinBgFastStrips !== false) {
+          deferredImg(cfg.postTunnelDawnLazyPrio != null ? cfg.postTunnelDawnLazyPrio + 1 : 73, cfg.diamond2PlatePath, function(img) {
+            if (!(img.width > 0)) return;
+            img._austinStrip = true; img._austinKey = "austin-free-synth";
+            state.austinStrips["austin-free-synth"] = img; state._austinNewPlatesReady["austin-free-synth"] = "fast";
           });
         }
 

@@ -262,7 +262,7 @@
       if (!(state.finaleMode === "fight" || state.finaleFight)) state.speed = respawnRoadSpeed(state);
       state.accelSpawnBoost = 1; // mark spawn; elapsed decay offset below
       state.accelSpawnElapsed0 = state.elapsed;
-      state.invulnTimer = Math.max(state.invulnTimer, 2.0);
+      state.invulnTimer = Math.max(state.invulnTimer, state.config.respawnInvulnSeconds != null ? state.config.respawnInvulnSeconds : 3.0); // sega55 (was 2.0)
       setEvent(state, "RESPAWN");
     }
   }
@@ -856,13 +856,15 @@
           var fxKind = (state.config && (state.config.enemyCollisionFxKind || state.config.carCollisionFxKind)) || "sega";
           if (fxKind === "pickup" || !fxKind) fxKind = "sega";
           ns.Fx.spawnExplosion(state, state.width / 2, state.height * 0.72, fxKind);
-          if (ns.Fx.spawnDebrisShards) ns.Fx.spawnDebrisShards(state, state.width / 2, state.height * 0.72, 1);
+          if (ns.Fx.spawnDebrisShards && state.config.damageDebrisOn === true) ns.Fx.spawnDebrisShards(state, state.width / 2, state.height * 0.72, 1);
           state.explosionFlash = Math.max(state.explosionFlash || 0, 1);
           state.damageFlash = Math.max(state.damageFlash || 0, 1);
         }
       } finally {
         state._carCollisionFx = false;
       }
+      // sega55: car-hit screen shake (decaying; renderer reads _carHitShakeAt)
+      if (state.config.carHitShakeOn !== false) state._carHitShakeAt = state.elapsed || 0;
       // sega31d: car collision damage scales with DISPLAYED mph (0 @ 0, full @ 240, cap above)
       (function() {
         var base = state.config.damage.carCollision + Math.floor(state.difficultyLevel * 0.5);

@@ -737,10 +737,15 @@
         var dwS = c.postTunnelDawnStartSec != null ? c.postTunnelDawnStartSec : 106.82;
         var dwE = c.postTunnelDawnEndSec != null ? c.postTunnelDawnEndSec : 120.5;
         var dwF = Math.max(0, c.postTunnelDawnFadeSec != null ? c.postTunnelDawnFadeSec : 1.5);
+        // sega55: diamond2PlateOn -> 120.5-diamond2PlateEndSec uses the synthwave skyline plate instead of violet
+        var d2Img = c.diamond2PlateOn !== false ? stripImg(state, "austin-free-synth") : null;
+        var d2E = c.diamond2PlateEndSec != null ? c.diamond2PlateEndSec : 155;
         if (dwImg && t >= dwS && t < dwE + dwF) {
-          var dwTo = stripImg(state, "violet");
+          var dwTo = d2Img || stripImg(state, "violet"), dwToK = d2Img ? "austin-free-synth" : "violet";
           if (t < dwE || !dwTo || !(dwF > 0)) tl = [{ img: dwImg, a: 1, key: "austin-free" }];
-          else tl = [{ img: dwImg, a: 1, key: "austin-free" }, { img: dwTo, a: smoothstep01((t - dwE) / dwF), key: "violet" }];
+          else tl = [{ img: dwImg, a: 1, key: "austin-free" }, { img: dwTo, a: smoothstep01((t - dwE) / dwF), key: dwToK }];
+        } else if (d2Img && t >= dwE + dwF && t < d2E) {
+          tl = [{ img: d2Img, a: 1, key: "austin-free-synth" }];
         }
       }
       if (tl) { if (state._bgMixState) state._bgMixState.img = null; return tl; }
@@ -900,7 +905,7 @@
   var AUSTIN_FREE_SKYLINE_MASK = [0.283, 0.283, 0.283, 0.283, 0.292, 0.475, 0.475, 0.475, 0.467, 0.475, 0.475, 0.475, 0.475, 0.483, 0.492, 0.492, 0.492, 0.708, 0.708, 0.433, 0.433, 0.425, 0.417, 0.408, 0.442, 0.458, 0.658, 0.658, 0.683, 0.7, 0.708, 0.717, 0.775, 0.775, 0.767, 0.733, 0.717, 0.733, 0.775, 0.692, 0.475, 0.117, 0.058, 0.05, 0.05, 0.042, 0.042, 0.05, 0.058, 0.067, 0.125, 0.225, 0.275, 0.275, 0.283, 0.417, 0.45, 0.65, 0.658, 0.483, 0.458, 0.442, 0.433, 0.417, 0.417, 0.417, 0.408, 0.383, 0.383, 0.492, 0.492, 0.492, 0.492, 0.492, 0.5, 0.5, 0.508, 0.5, 0.5, 0.492, 0.475, 0.475, 0.483, 0.492, 0.483, 0.433, 0.342, 0.292, 0.275, 0.267, 0.25, 0.242, 0.242, 0.308, 0.442, 0.45, 0.5, 0.483, 0.483, 0.5, 0.492, 0.492, 0.617, 0.617, 0.55, 0.45, 0.45, 0.442, 0.45, 0.475, 0.6, 0.608, 0.608, 0.608, 0.625, 0.675, 0.675, 0.675, 0.675, 0.65, 0.65, 0.65, 0.675, 0.7, 0.683, 0.675, 0.683, 0.683];
   // sega54: horizontal pan of a cover-cropped plate (0 = left edge, 0.5 = centred, 1 = right edge); px shift in band space
   function platePanPx54(state, key, img, width, height, cfgBg) {
-    if (key !== "austin-free" || !img || !(img.width > 0)) return 0;
+    if ((key !== "austin-free" && key !== "austin-free-synth") || !img || !(img.width > 0)) return 0;
     var c = state.config || {};
     var ax = c.postTunnelDawnPanX != null ? c.postTunnelDawnPanX : 0.5;
     if (ax === 0.5) return 0;
@@ -917,14 +922,15 @@
     if (mp) {
       if (key === "night-synth") return mp["night-synth"] || null;
       if (key === "dusk-clean" || key === "violet") return mp.clean || null;
-      if (key === "dusk" || key === "acid" || key === "greenbelt") return mp[key] || null;
+      if (key === "dusk" || key === "acid") return mp[key] || null;
+      if (key === "greenbelt" && (state.config.greenbeltPlateMode || "classic") !== "classic") return mp.greenbelt || null; // sega55
     }
     if (key === "dusk" || key === "ember") return m.dusk || null;
     if (key === "acid") return m.acid || null;
     if (key === "greenbelt") return m.greenbelt || m.clean || null; // sega52
     if (key.indexOf("capitol-") === 0) return state._capitolOpen54 ? (m.capitolPostnukeOpen || CAPITOL_POSTNUKE_OPEN_MASK)
       : (m.capitolPostnuke || CAPITOL_POSTNUKE_MASK); // sega54: open mask once the dome has burst
-    if (key === "austin-free") return m.austinFreeSkyline || AUSTIN_FREE_SKYLINE_MASK; // sega54 (default until config bake)
+    if (key === "austin-free" || key === "austin-free-synth") return m.austinFreeSkyline || AUSTIN_FREE_SKYLINE_MASK; // sega54 (default until config bake)
     return m.clean || null;
   }
 
@@ -997,7 +1003,8 @@
       if (jolt) { pz *= jolt.s; }
       var jx = jolt ? jolt.x : 0, jy = jolt ? jolt.y : 0;
       if (pz !== 1 || jolt) { ctx.save(); ctx.translate(width / 2 + jx, anchorY + jy); ctx.scale(pz, pz); ctx.translate(-width / 2, -anchorY); }
-      r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff, pnx);
+      r = (mix[i].key.indexOf("capitol-") !== 0) ? drawLayeredPlate55(state, ctx, mix[i].key, mix[i].img, width, height, cfgBg, scrollOff, pnx, pz, offX, anchorY) : null; // sega55 bgLayersOn
+      if (!r) r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff, pnx);
       if (r && mix[i].key.indexOf("capitol-") === 0) {
         drawCapitolFx54(state, ctx, mix[i].key, r, mix[i].img);
         if (mix[i].key.indexOf("capitol-fire") === 0) {   // dome cavity in screen px (for the boss rise hand-off)
@@ -1129,6 +1136,203 @@
     } catch (e) { return null; }
   }
 
+  // ===== sega55: LAYERED BACKGROUND (bgLayersOn) — cut each smooth photo plate at runtime into sky / far skyline / near
+  // (+ lights & silhouette helpers) using the existing 128-col skyline masks + a per-plate near line; no new image assets.
+  function L55cfg(c, k, d) { return c[k] != null ? c[k] : d; }
+  function L55keys(c) { return c.bgLayersKeys || ["night-synth", "dusk-clean", "violet", "greenbelt", "austin-free", "austin-free-synth", "dusk", "acid"]; }
+  function L55canvas(w, h) { var cv = document.createElement("canvas"); cv.width = w; cv.height = h; return cv; }
+  function L55build(state, key, img) {
+    var c = state.config || {};
+    var W = img.width, H = img.height;
+    var tops = skylineTopsFor(state, key);
+    if (!tops || !tops.length || !(W > 0)) return null;
+    var nf = (c.bgLayerNearFracByKey || {})[key];
+    if (nf == null) nf = 0.82;
+    var nearY = Math.round(H * nf), n = tops.length, i, x0, x1, ty;
+    var sm = /-smooth\.(jpe?g|png)(\?|$)/i.test(img.src || img.currentSrc || "");
+    // SKY: plate with the building region replaced by the sky just above the silhouette (stretched down, then blurred)
+    var sky = L55canvas(W, H), sx = sky.getContext("2d");
+    sx.drawImage(img, 0, 0);
+    for (i = 0; i < n; i++) {
+      x0 = Math.floor(i * W / n); x1 = Math.ceil((i + 1) * W / n);
+      ty = Math.max(3, Math.floor(tops[i] * H) - 5);
+      sx.drawImage(img, x0, ty - 3, x1 - x0, 3, x0, ty - 3, x1 - x0, H - ty + 3);
+    }
+    var bl = L55canvas(Math.max(8, W >> 6), Math.max(4, H >> 4)), bx = bl.getContext("2d");
+    bx.drawImage(sky, 0, 0, bl.width, bl.height);
+    sx.save(); sx.beginPath(); sx.moveTo(0, H);
+    for (i = 0; i < n; i++) { sx.lineTo(i * W / n, Math.max(0, tops[i] * H - 8)); sx.lineTo((i + 1) * W / n, Math.max(0, tops[i] * H - 8)); }
+    sx.lineTo(W, H); sx.closePath(); sx.clip(); sx.imageSmoothingEnabled = true;
+    sx.drawImage(bl, 0, 0, bl.width, bl.height, 0, 0, W, H); sx.restore();
+    // FAR: silhouette polygon (skyline tops .. near line)
+    var far = L55canvas(W, H), fx = far.getContext("2d");
+    fx.save(); fx.beginPath(); fx.moveTo(0, nearY + 2);
+    for (i = 0; i < n; i++) { fx.lineTo(i * W / n, tops[i] * H - 1); fx.lineTo((i + 1) * W / n, tops[i] * H - 1); }
+    fx.lineTo(W, nearY + 2); fx.closePath(); fx.clip(); fx.drawImage(img, 0, 0); fx.restore();
+    // NEAR: rows below the near line, soft top edge
+    var near = L55canvas(W, H), nx = near.getContext("2d");
+    nx.drawImage(img, 0, 0);
+    nx.globalCompositeOperation = "destination-in";
+    var g = nx.createLinearGradient(0, nearY - 6, 0, nearY + 4); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,1)");
+    nx.fillStyle = g; nx.fillRect(0, 0, W, H); nx.globalCompositeOperation = "source-over";
+    // LIGHTS (half res, white with alpha): bright windows (or fires on post-nuke plates); SIL: black silhouette of FAR
+    var hw = W >> 1, hh = H >> 1, lights = L55canvas(hw, hh), lx = lights.getContext("2d"), fire = (key === "dusk" || key === "acid");
+    lx.drawImage(far, 0, 0, hw, hh);
+    try {
+      var id = lx.getImageData(0, 0, hw, hh), d = id.data, p, r, gg, b, a, y, k;
+      for (p = 0; p < d.length; p += 4) {
+        a = d[p + 3]; if (!a) continue;
+        r = d[p] / 255; gg = d[p + 1] / 255; b = d[p + 2] / 255; y = 0.3 * r + 0.59 * gg + 0.11 * b;
+        k = fire ? ((r > 0.55 && r > gg * 1.25 && b < 0.55) ? Math.min(1, (r - 0.55) / 0.3) : 0) : Math.max(0, Math.min(1, (y - 0.68) / 0.2));
+        d[p] = d[p + 1] = d[p + 2] = 255; d[p + 3] = Math.round(a * k);
+      }
+      lx.putImageData(id, 0, 0);
+    } catch (eL) { lights = null; }
+    var sil = L55canvas(hw, hh), slx = sil.getContext("2d");
+    slx.drawImage(far, 0, 0, hw, hh); slx.globalCompositeOperation = "source-in"; slx.fillStyle = "#000"; slx.fillRect(0, 0, hw, hh);
+    var tint = L55canvas(hw, hh);
+    [sky, far, near, lights, sil].forEach(function(cv) { if (cv) cv._smooth54 = sm; });
+    return { sky: sky, far: far, near: near, lights: lights, sil: sil, tint: tint, tops: tops, nearF: nf, W: W, H: H, img: img, fire: fire };
+  }
+  function L55get(state, key, img) {
+    var c = state.config || {};
+    var cache = state._bgL55 || (state._bgL55 = { m: {}, order: [], builtT: -1 });
+    var e = cache.m[key];
+    if (e && e.img === img) return e;
+    // at most one build per frame (spread the one-off cost)
+    var now = (state.elapsed || 0);
+    if (cache.builtT === now) return null;
+    cache.builtT = now;
+    try { e = L55build(state, key, img); } catch (eB) { e = null; }
+    if (!e) { cache.m[key] = { img: img, bad: true }; return null; }
+    cache.m[key] = e; cache.order = cache.order.filter(function(k) { return k !== key; }); cache.order.push(key);
+    var mx = L55cfg(c, "bgLayersCacheMax", 4);
+    while (cache.order.length > mx) { delete cache.m[cache.order.shift()]; }
+    return e;
+  }
+  function L55hitShake(state, c) {
+    if (c.carHitShakeOn === false || state._carHitShakeAt == null) return null;
+    var D = Math.max(0.05, L55cfg(c, "carHitShakeSec", 0.3)), T = (state.elapsed || 0) - state._carHitShakeAt;
+    if (!(T >= 0 && T < D)) return null;
+    var A = L55cfg(c, "carHitShakePx", 8) * L55cfg(c, "bgLayerFxHitShakeNearMult", 1.5) * Math.pow(1 - T / D, 2);
+    return { x: A * Math.sin(T * 71.3 + 1), y: A * 0.6 * Math.cos(T * 63.1) };
+  }
+  // returns rect like drawBgSingleLayer, or null (caller draws the flat plate)
+  function drawLayeredPlate55(state, ctx, key, img, width, height, cfgBg, scrollOff, pnx, pz, offX, anchorY) {
+    var c = state.config || {};
+    if (c.bgLayersOn === false || L55keys(c).indexOf(key) < 0 || !img || !(img.width > 0)) return null;
+    var L = L55get(state, key, img);
+    if (!L || L.bad) return null;
+    var t = state.songClock != null ? state.songClock : 0;
+    var P = (state._bgParallaxX || 0) * L55cfg(c, "bgParallaxGain", 2.0);
+    var bandY = height * (cfgBg.austinBgSingleYFrac != null ? cfgBg.austinBgSingleYFrac : 0);
+    var bandH = Math.max(1, height * (cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55));
+    var zOf = function(m) { return pz > 0 ? (1 + (pz - 1) * m) / pz : 1; };
+    var pmax = Math.abs(L55cfg(c, "bgScrollMaxPx", 24)) * L55cfg(c, "bgParallaxGain", 2.0);
+    function xf(k, zm, ex, ey) {
+      var ov = 1 + (2 * (pmax * k + Math.abs(ex || 0) + 2)) / Math.max(1, width);
+      ctx.translate(width / 2 - offX + P * k + (ex || 0), anchorY + (ey || 0)); ctx.scale(zm * ov, zm * ov); ctx.translate(-width / 2, -anchorY);
+    }
+    function lay(cv, k, zm, ex, ey) { ctx.save(); xf(k, zm, ex, ey); var r = drawBgSingleLayer(ctx, cv, width, height, cfgBg, scrollOff, pnx); ctx.restore(); return r; }
+    var kS = L55cfg(c, "bgParallaxSky", 0.05), kF = L55cfg(c, "bgParallaxFar", 0.25), kN = L55cfg(c, "bgParallaxNear", 0.6);
+    var zS = zOf(L55cfg(c, "bgZoomSkyMult", 0.6)), zF = zOf(L55cfg(c, "bgZoomFarMult", 1.0)), zN = zOf(L55cfg(c, "bgZoomNearMult", 1.6));
+    var drift = L55cfg(c, "bgSkyDriftPx", 10) * Math.sin(t * 2 * Math.PI / Math.max(1, L55cfg(c, "bgSkyDriftPeriodSec", 40)));
+    // ---- SKY + sky-only FX
+    var r = lay(L.sky, kS, zS, drift, 0);
+    if (!r) return null;
+    ctx.save(); xf(kS, zS, drift, 0);
+    ctx.beginPath(); ctx.rect(0, bandY, width, bandH); ctx.clip();
+    var minTop = 1; for (var q = 0; q < L.tops.length; q++) minTop = Math.min(minTop, L.tops[q]);
+    var tintMap = c.bgSkyTintBySection || {};
+    var tint = state.sectionId ? tintMap[state.sectionId] : null;
+    if (tint) { ctx.fillStyle = tint; ctx.fillRect(r.x, r.y, r.w, r.h * L.nearF); }
+    if (c.bgSkySunriseOn !== false && key === "austin-free") {
+      var s0 = L55cfg(c, "postTunnelDawnStartSec", 106.82), s1 = L55cfg(c, "postTunnelDawnEndSec", 120.5);
+      var su = Math.max(0, Math.min(1, (t - s0) / Math.max(1, s1 - s0)));
+      var hy = r.y + r.h * L.nearF, gy = ctx.createLinearGradient(0, hy, 0, hy - r.h * (0.25 + 0.6 * su));
+      gy.addColorStop(0, "rgba(" + (c.bgSkySunriseRgb || "255,150,60") + "," + (L55cfg(c, "bgSkySunriseMaxAlpha", 0.45) * su) + ")");
+      gy.addColorStop(1, "rgba(" + (c.bgSkySunriseRgb || "255,150,60") + ",0)");
+      ctx.fillStyle = gy; ctx.fillRect(r.x, r.y, r.w, r.h * L.nearF);
+    }
+    if (c.bgSkyStarsOn !== false && (c.bgSkyStarsKeys || ["night-synth", "violet", "greenbelt", "austin-free-synth"]).indexOf(key) >= 0) {
+      var ns_ = L55cfg(c, "bgSkyStarsCount", 60), si, seed = 1234;
+      var sga = ctx.globalAlpha;
+      for (si = 0; si < ns_; si++) {
+        seed = (seed * 16807) % 2147483647; var ux = seed / 2147483647;
+        seed = (seed * 16807) % 2147483647; var uy = seed / 2147483647;
+        seed = (seed * 16807) % 2147483647; var ph = seed / 2147483647 * 6.28;
+        var al = 0.25 + 0.75 * Math.abs(Math.sin(t * (1.3 + ph * 0.4) + ph));
+        ctx.globalAlpha = sga * al;
+        ctx.fillStyle = si % 5 === 0 ? "#9ff6ff" : (si % 7 === 0 ? "#ff9ee8" : "#ffffff");
+        var sz = (si % 9 === 0) ? 2 : 1;
+        ctx.fillRect(r.x + ux * r.w, r.y + uy * r.h * minTop * 0.92, sz, sz);
+      }
+      ctx.globalAlpha = sga;
+    }
+    var flashK = 0;
+    if (c.bgSkyNukeFlashOn !== false && L.fire) {
+      var ne = nukeWindow(state).end, fS = Math.max(0.1, L55cfg(c, "bgSkyNukeFlashSec", 2.5));
+      if (t >= ne && t < ne + fS) flashK = 1 - (t - ne) / fS;
+      if (flashK > 0) { ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,245,220," + (0.85 * flashK) + ")"; ctx.fillRect(r.x, r.y, r.w, r.h * L.nearF); ctx.globalCompositeOperation = "source-over"; }
+    }
+    ctx.restore();
+    // ---- FAR (reveals: post-nuke tower collapse / Greenbelt trees part)
+    ctx.save(); xf(kF, zF, 0, 0); ctx.beginPath(); ctx.rect(0, bandY, width, bandH); ctx.clip();
+    var sxW = r.w / L.W, syH = r.h / L.H, nearPx = r.y + r.h * L.nearF;
+    var colOn = c.bgRevealCollapseOn !== false && L.fire;
+    var cs0 = L55cfg(c, "bgRevealCollapseStartSec", 162), cg = L55cfg(c, "bgRevealCollapseGapSec", 1.2), cd = Math.max(0.1, L55cfg(c, "bgRevealCollapseDurSec", 2.0));
+    var partOn = c.bgRevealTreesPartOn !== false && key === "greenbelt";
+    var p0 = L55cfg(c, "bgRevealTreesPartStartSec", 78.5), p1 = L55cfg(c, "bgRevealTreesPartEndSec", 81.5);
+    var pu = partOn ? Math.max(0, Math.min(1, (t - p0) / Math.max(0.1, p1 - p0))) : 0; pu = pu * pu * (3 - 2 * pu);
+    if (colOn && t >= cs0) {
+      var NS = 16, j, order = [3, 9, 6, 12, 1, 14, 7, 4, 10, 0, 13, 5, 11, 2, 8, 15], tall = L55cfg(c, "bgRevealCollapseTallFrac", 0.55), to = L55cfg(c, "bgRevealCollapseToFrac", 0.72), rank = 0;
+      var rk = {}; for (j = 0; j < NS; j++) {
+        var c0 = Math.floor(order[j] * L.tops.length / NS), c1 = Math.floor((order[j] + 1) * L.tops.length / NS), mt = 1;
+        for (var cc = c0; cc < c1; cc++) mt = Math.min(mt, L.tops[cc]);
+        rk[order[j]] = mt < tall ? { i: rank++, mt: mt } : { i: -1, mt: mt };
+      }
+      for (j = 0; j < NS; j++) {
+        var info = rk[j], sw = L.W / NS, sx0 = j * sw, sink = 0;
+        if (info.i >= 0) { var u = Math.max(0, Math.min(1, (t - cs0 - info.i * cg) / cd)); u = u * u; sink = Math.max(0, (to - info.mt)) * L.H * u; }
+        ctx.save(); ctx.beginPath(); ctx.rect(r.x + sx0 * sxW - 0.5, r.y, sw * sxW + 1, nearPx - r.y); ctx.clip();
+        ctx.drawImage(L.far, sx0, 0, sw, L.H, r.x + sx0 * sxW, r.y + sink * syH, sw * sxW, r.h);
+        ctx.restore();
+      }
+    } else if (pu > 0) {
+      var sh = pu * L55cfg(c, "bgRevealTreesPartFrac", 0.35) * r.w;
+      ctx.drawImage(L.far, 0, 0, L.W / 2, L.H, r.x - sh, r.y, r.w / 2, r.h);
+      ctx.drawImage(L.far, L.W / 2, 0, L.W / 2, L.H, r.x + r.w / 2 + sh, r.y, r.w / 2, r.h);
+    } else {
+      ctx.drawImage(L.far, 0, 0, L.W, L.H, r.x, r.y, r.w, r.h);
+    }
+    // per-layer FX on FAR: colour-cycled window lights / flickering fires (not while collapsing / parting)
+    if (L.lights && !(colOn && t >= cs0) && !(pu > 0)) {
+      var la = 0, col = null;
+      if (L.fire && c.bgLayerFxFireFlickerOn !== false) {
+        la = L55cfg(c, "bgLayerFxFireAlpha", 0.55) * (0.45 + 0.35 * Math.sin(t * 23.0) * Math.sin(t * 7.3 + 1.1) + 0.2 * Math.sin(t * 41.0));
+        col = "rgb(255,150,40)";
+      } else if (!L.fire && c.bgLayerFxLightsOn !== false) {
+        var hue = Math.round(((t / Math.max(0.5, L55cfg(c, "bgLayerFxLightsCycleSec", 6))) % 1) * 360);
+        la = L55cfg(c, "bgLayerFxLightsAlpha", 0.45); col = "hsl(" + hue + ",100%,62%)";
+      }
+      if (la > 0.01 && col) {
+        var tc = L.tint.getContext("2d");
+        tc.globalCompositeOperation = "copy"; tc.drawImage(L.lights, 0, 0);
+        tc.globalCompositeOperation = "source-in"; tc.fillStyle = col; tc.fillRect(0, 0, L.tint.width, L.tint.height);
+        tc.globalCompositeOperation = "source-over";
+        var ga = ctx.globalAlpha; ctx.globalAlpha = ga * Math.min(1, la); ctx.globalCompositeOperation = "lighter";
+        ctx.drawImage(L.tint, 0, 0, L.tint.width, L.tint.height, r.x, r.y, r.w, r.h);
+        ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = ga;
+      }
+    }
+    if (flashK > 0 && L.sil) { var ga2 = ctx.globalAlpha; ctx.globalAlpha = ga2 * 0.8 * flashK; ctx.drawImage(L.sil, 0, 0, L.sil.width, L.sil.height, r.x, r.y, r.w, r.h); ctx.globalAlpha = ga2; }
+    ctx.restore();
+    // ---- NEAR (+ foreground-only hit shake)
+    var hs = L55hitShake(state, c);
+    lay(L.near, kN, zN, hs ? hs.x : 0, hs ? hs.y : 0);
+    return r;
+  }
+
   function drawBgSingleLayer(ctx, background, width, height, cfg, scrollOffset, panPx) {
     if (!background || !(background.width > 0)) return;
     var yFrac = cfg.austinBgSingleYFrac != null ? cfg.austinBgSingleYFrac : 0;
@@ -1201,6 +1405,9 @@
     }
     var rot = scrollOn ? ((scrollOffset || 0) % 1) : 0;
     ctx.save();
+    // sega55: untouched full-res photo plates (*-smooth.jpg, photoPlatesSmooth) draw with high-quality smoothing
+    if (background._smooth54 == null) background._smooth54 = /-smooth\.(jpe?g|png)(\?|$)/i.test(background.src || background.currentSrc || "");
+    if (background._smooth54) { ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = "high"; } catch (eSQ) {} }
     ctx.beginPath();
     ctx.rect(0, bandY, bandW, bandH);
     ctx.clip();
@@ -2533,6 +2740,11 @@ function renderWorld(state) {
     var width = state.width;
     var height = state.height;
     ctx.save();
+    // sega55: invulnerability blink for the whole invuln window (hit 0.85 s, respawn 3 s)
+    if (state.config.invulnBlinkOn !== false && state.invulnTimer > 0 && state.phase === "running" && !(state.deathFlashTimer > 0)) {
+      var ibHz = state.config.invulnBlinkHz != null ? state.config.invulnBlinkHz : 12;
+      if (Math.floor(state.invulnTimer * ibHz * 2) % 2 === 1) ctx.globalAlpha *= (state.config.invulnBlinkAlpha != null ? state.config.invulnBlinkAlpha : 0.35);
+    }
     if (state.shockFlash > 0) {
       var flicker = (Math.sin((state.psychPhase || 0) * 55) > 0) || (state.shockFlash > 0.55);
       if (flicker) {
@@ -2799,6 +3011,17 @@ function renderWorld(state) {
     render: function(state) {
       // sega43: nuke detonation screen shake (decays over blast window)
       var shake = nukeSegaShake(state);
+      // sega55: car-hit screen shake — carHitShakePx decaying (1-u)^2 over carHitShakeSec
+      var chC = state.config || {};
+      if (chC.carHitShakeOn !== false && state._carHitShakeAt != null && state.phase === "running") {
+        var chD = Math.max(0.05, chC.carHitShakeSec != null ? chC.carHitShakeSec : 0.3);
+        var chT = (state.elapsed || 0) - state._carHitShakeAt;
+        if (chT >= 0 && chT < chD) {
+          var chA = (chC.carHitShakePx != null ? chC.carHitShakePx : 8) * Math.pow(1 - chT / chD, 2);
+          var chS = { x: Math.round(chA * Math.sin(chT * 91.7)), y: Math.round(chA * 0.7 * Math.cos(chT * 77.3)) };
+          shake = shake ? { x: shake.x + chS.x, y: shake.y + chS.y } : chS;
+        } else if (chT >= chD) state._carHitShakeAt = null;
+      }
       if (shake) {
         state.ctx.save();
         state.ctx.fillStyle = "#000";

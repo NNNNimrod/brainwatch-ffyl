@@ -235,6 +235,52 @@
     madMaxNoHearts: true, // sega31p no heart/pickup spawns during madMaxMode / [120.5,156.0)
     noHeartsDuringMadMax: true,
     invulnSeconds: 0.85,
+    damageDebrisOn: false, // sega55: debris shards on car-hit damage explosions (false = 
+    carHitShakeOn: true, // sega55: screen shake on car hits
+    carHitShakePx: 8, // sega55: car-hit shake amplitude (px), decays (1-u)^2
+    carHitShakeSec: 0.3, // sega55: car-hit shake duration (s)
+    invulnBlinkOn: true, // sega55: player blinks for the whole invulnerability window (
+    invulnBlinkHz: 12, // sega55: blink rate (Hz)
+    invulnBlinkAlpha: 0.35, // sega55: alpha on the 'off' blink phase
+    respawnInvulnSeconds: 3.0,
+    bgLayersOn: true, // sega55 LAYERED BG master: cut smooth photo plates at runtime into sky 
+    bgLayersKeys: ["night-synth", "dusk-clean", "violet", "greenbelt", "austin-free", "austin-free-synth", "dusk", "acid"], // sega55: plate keys drawn layered (Capitol stays flat)
+    bgLayerNearFracByKey: {"night-synth": 0.8, "dusk-clean": 0.83, "violet": 0.83, "greenbelt": 0.8, "austin-free": 0.9, "austin-free-synth": 0.9, "dusk": 0.83, "acid": 0.83}, // sega55: near/foreground line per plate (fraction of plate height)
+    bgLayersCacheMax: 4, // sega55: max plates kept cut into layers (memory)
+    bgParallaxGain: 2.0, // sega55: layer parallax gain on the steering/curve scroll (x bgScroll o
+    bgParallaxSky: 0.05, // sega55: sky layer rate (road = 1)
+    bgParallaxFar: 0.25, // sega55: far skyline rate
+    bgParallaxNear: 0.6, // sega55: near layer rate
+    bgSkyDriftPx: 10, // sega55: sky layer slow sway (cloud drift) amplitude px
+    bgSkyDriftPeriodSec: 40, // sega55: sky sway period (s)
+    bgSkyStarsOn: true, // sega55: twinkling stars on the sky layer (behind the skyline)
+    bgSkyStarsKeys: ["night-synth", "violet", "greenbelt", "austin-free-synth"], // sega55: plates with twinkling stars
+    bgSkyStarsCount: 60, // sega55: star count
+    bgSkySunriseOn: true, // sega55: slow sunrise creep on the dawn plate sky (106.82-120.5)
+    bgSkySunriseRgb: "255,150,60", // sega55: sunrise glow colour r,g,b
+    bgSkySunriseMaxAlpha: 0.45, // sega55: sunrise glow max alpha
+    bgSkyNukeFlashOn: true, // sega55: nuke flash lights only the SKY of the post-nuke plates; buildi
+    bgSkyNukeFlashSec: 2.5, // sega55: sky flash decay after the blast window (s)
+    bgSkyTintBySection: {}, // sega55: per-section sky tint, e.g. {"diamond2":"rgba(120,0,255,0.12)"}
+    bgLayerFxLightsOn: true, // sega55: colour-cycle only the window lights (far layer)
+    bgLayerFxLightsAlpha: 0.45, // sega55: window light cycle strength
+    bgLayerFxLightsCycleSec: 6, // sega55: hue cycle period (s)
+    bgLayerFxFireFlickerOn: true, // sega55: flicker only the fires on post-nuke plates
+    bgLayerFxFireAlpha: 0.55, // sega55: fire flicker strength
+    bgLayerFxHitShakeNearMult: 1.5, // sega55: extra foreground-only shake on car hits (x carHitShakePx)
+    bgZoomNearMult: 1.6, // sega55: progressive zoom on the near layer (x plate zoom delta)
+    bgZoomFarMult: 1.0, // sega55: far layer zoom mult
+    bgZoomSkyMult: 0.6, // sega55: sky layer zoom mult
+    bgRevealCollapseOn: true, // sega55: post-nuke towers collapse one by one
+    bgRevealCollapseStartSec: 162, // sega55: first tower collapse (s)
+    bgRevealCollapseGapSec: 1.2, // sega55: gap between towers (s)
+    bgRevealCollapseDurSec: 2.0, // sega55: each tower sink time (s)
+    bgRevealCollapseTallFrac: 0.55, // sega55: only strips taller than this (mask top < frac) collapse
+    bgRevealCollapseToFrac: 0.72, // sega55: towers sink to this plate height
+    bgRevealTreesPartOn: true, // sega55: Greenbelt trees part before the tunnel portal
+    bgRevealTreesPartStartSec: 78.5, // sega55: trees start parting (s)
+    bgRevealTreesPartEndSec: 81.5, // sega55: fully parted (portal fades in 81.5)
+    bgRevealTreesPartFrac: 0.35, // sega55: each half slides out by this fraction of plate width // sega55: invulnerability after death/respawn (was 2.0)
     softFail: true,
     // Respawn after DEATH banner: SPD LED ≈ respawnDisplayMph (not from zero).
     // Mapping: display = internalLED × (speedoRatioDisplay/speedoRatioCode) = internal × (169/140).
@@ -494,6 +540,7 @@
     heartDropInitialVy: 0,
     heartSpawnScreenY: -0.12, // sega31m a little higher / more off-top
     heartDropEndScaleMult: 0.25, // sega31k shrink to 25% while falling
+    heartFrequencyMult: 0.75, // sega55: 25% fewer hearts everywhere (1 = sega54)
     heartSpawnRateMult: 3.2, // sega48: hearts x0.64 whole game (was 5; lane-swap/pre-boss/post-boss mults stack on top)
     heartNotFromRoadHorizon: true,
     heartDropLingerSec: 1.0,
@@ -653,6 +700,21 @@
     photoTunnelPortalPath: "images/fx/tunnel-portal-photo.png",                               // tunnel mouth (same layout as v2)
     photoNightUntilSec: 40.2,   // night-synthwave plate until the orange->violet holding cross-fade starts
     photoNightFadeSec: 2.0,     // night -> orange cross-fade (ends at photoNightUntilSec)
+    // sega55 (queued): untouched smooth photo plates + Greenbelt plate mode
+    photoPlatesSmooth: true,
+    greenbeltPlateMode: "classic",
+    photoNightSynthSmoothPath: "images/bg-austin-new/fast/background-photo-night-synthwave-smooth.jpg",
+    photoDuskCleanSmoothPath: "images/bg-austin-new/fast/background-photo-dusk-avg-smooth.jpg", // sega55: palette = avg(night-synth, violet); old: background-photo-dusk-clean-smooth.jpg
+    photoVioletSmoothPath: "images/bg-austin-new/fast/background-photo-violet-smooth.jpg",
+    photoGreenbeltSmoothPath: "images/bg-austin-new/fast/background-photo-greenbelt-night-smooth.jpg",
+    photoPostnukeDuskSmoothPath: "images/bg-austin-new/fast/background-photo-postnuke-dusk-smooth.jpg",
+    photoPostnukeAcidSmoothPath: "images/bg-austin-new/fast/background-photo-postnuke-acid-smooth.jpg",
+    photoTunnelPortalSmoothPath: "images/fx/tunnel-portal-photo-smooth.jpg",
+    bossBgCapitolSmooth: true,
+    bossBgCapitolSmoothPath: "images/bg-austin-new/fast/background-capitol-postnuke-smooth.jpg",
+    bossBgCapitolGreenSmoothPath: "images/bg-austin-new/fast/background-capitol-postnuke-green-smooth.jpg",
+    bossBgCapitolOpenSmoothPath: "images/bg-austin-new/fast/background-capitol-postnuke-open-smooth.jpg",
+    bossBgCapitolGreenOpenSmoothPath: "images/bg-austin-new/fast/background-capitol-postnuke-green-open-smooth.jpg",
     skylineMaskPhoto: {"night-synth": [0.683, 0.667, 0.658, 0.658, 0.683, 0.667, 0.708, 0.717, 0.717, 0.717, 0.708, 0.717, 0.733, 0.75, 0.733, 0.733, 0.675, 0.642, 0.65, 0.65, 0.642, 0.642, 0.642, 0.658, 0.65, 0.642, 0.642, 0.692, 0.692, 0.692, 0.717, 0.733, 0.692, 0.642, 0.65, 0.667, 0.65, 0.542, 0.542, 0.542, 0.55, 0.7, 0.725, 0.717, 0.725, 0.725, 0.708, 0.642, 0.608, 0.608, 0.675, 0.658, 0.667, 0.683, 0.667, 0.667, 0.667, 0.675, 0.65, 0.65, 0.65, 0.7, 0.683, 0.65, 0.642, 0.642, 0.642, 0.667, 0.658, 0.658, 0.667, 0.667, 0.675, 0.658, 0.65, 0.675, 0.575, 0.575, 0.633, 0.675, 0.7, 0.683, 0.683, 0.683, 0.683, 0.683, 0.692, 0.7, 0.7, 0.7, 0.7, 0.725, 0.717, 0.717, 0.7, 0.683, 0.683, 0.675, 0.683, 0.692, 0.742, 0.7, 0.633, 0.692, 0.675, 0.733, 0.733, 0.742, 0.717, 0.708, 0.692, 0.708, 0.683, 0.683, 0.742, 0.733, 0.7, 0.7, 0.7, 0.708, 0.65, 0.65, 0.683, 0.658, 0.6, 0.6, 0.6, 0.617], "clean": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.602, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.435, 0.438, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.454, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.473, 0.483, 0.481, 0.483, 0.552, 0.585, 0.6, 0.629, 0.619, 0.454, 0.452, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "dusk": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.598, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.423, 0.417, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.427, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.452, 0.446, 0.444, 0.44, 0.552, 0.585, 0.6, 0.629, 0.619, 0.429, 0.427, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "acid": [0.454, 0.446, 0.444, 0.44, 0.438, 0.438, 0.45, 0.619, 0.602, 0.608, 0.608, 0.602, 0.602, 0.613, 0.598, 0.604, 0.617, 0.617, 0.621, 0.625, 0.633, 0.633, 0.633, 0.642, 0.673, 0.667, 0.458, 0.423, 0.417, 0.433, 0.433, 0.435, 0.438, 0.435, 0.458, 0.667, 0.658, 0.642, 0.633, 0.633, 0.635, 0.623, 0.621, 0.617, 0.617, 0.602, 0.602, 0.613, 0.602, 0.604, 0.608, 0.61, 0.602, 0.619, 0.446, 0.438, 0.438, 0.44, 0.444, 0.446, 0.427, 0.36, 0.323, 0.296, 0.298, 0.325, 0.467, 0.463, 0.469, 0.471, 0.475, 0.469, 0.471, 0.492, 0.554, 0.592, 0.6, 0.61, 0.629, 0.604, 0.598, 0.562, 0.496, 0.492, 0.475, 0.452, 0.446, 0.444, 0.44, 0.552, 0.585, 0.6, 0.629, 0.619, 0.429, 0.427, 0.452, 0.44, 0.452, 0.452, 0.454, 0.617, 0.629, 0.602, 0.585, 0.552, 0.519, 0.481, 0.483, 0.473, 0.473, 0.492, 0.494, 0.562, 0.598, 0.6, 0.627, 0.61, 0.6, 0.592, 0.554, 0.492, 0.471, 0.469, 0.475, 0.471, 0.469, 0.463], "greenbelt": [0.308, 0.321, 0.338, 0.344, 0.331, 0.331, 0.315, 0.319, 0.329, 0.338, 0.342, 0.342, 0.331, 0.333, 0.348, 0.352, 0.369, 0.371, 0.36, 0.36, 0.333, 0.323, 0.283, 0.283, 0.333, 0.342, 0.369, 0.356, 0.312, 0.31, 0.304, 0.304, 0.321, 0.321, 0.315, 0.315, 0.325, 0.325, 0.365, 0.365, 0.346, 0.346, 0.327, 0.327, 0.36, 0.365, 0.379, 0.379, 0.375, 0.373, 0.35, 0.35, 0.34, 0.338, 0.352, 0.35, 0.34, 0.333, 0.31, 0.31, 0.335, 0.342, 0.35, 0.333, 0.298, 0.283, 0.29, 0.287, 0.298, 0.3, 0.323, 0.35, 0.371, 0.365, 0.365, 0.354, 0.358, 0.362, 0.371, 0.356, 0.348, 0.329, 0.331, 0.346, 0.352, 0.365, 0.344, 0.308, 0.306, 0.294, 0.294, 0.306, 0.306, 0.308, 0.308, 0.31, 0.31, 0.308, 0.308, 0.323, 0.327, 0.346, 0.346, 0.312, 0.312, 0.306, 0.306, 0.344, 0.344, 0.352, 0.352, 0.356, 0.356, 0.377, 0.377, 0.371, 0.369, 0.335, 0.335, 0.344, 0.344, 0.335, 0.335, 0.302, 0.296, 0.308, 0.319, 0.354]},
     // sega54 build: baked sega54 batch editor cells (code defaults already equal; explicit so the build == the editor)
     winDepartureStartSec: 219.76,
@@ -682,6 +744,11 @@
     postTunnelDawnChoice: "dawn",
     postTunnelDawnPathBlue: "images/bg-austin-new/fast/background-austin-free.jpg",
     postTunnelDawnPanX: 0.5,
+    postTunnelDawnSmooth: true, // sega55: #9 dawn plate (106.82-120.5) uses the smooth de-pixelated vers
+    postTunnelDawnSmoothPath: "images/bg-austin-new/fast/background-austin-free-dawn-smooth.jpg", // sega55: smooth #9 dawn plate file
+    diamond2PlateOn: true, // sega55: 120.5-diamond2PlateEndSec shows the synthwave-graded skyline i
+    diamond2PlatePath: "images/bg-austin-new/fast/background-austin-free-synth-smooth.jpg", // sega55: diamond2 synthwave plate file
+    diamond2PlateEndSec: 155, // sega55: diamond2 plate ends (violet pin resumes under the 155 nuke whi
     bossBgCapitolOn: true,
     bossBgCapitolPath: "images/bg-austin-new/fast/background-capitol-postnuke.jpg",
     bossBgCapitolGreenPath: "images/bg-austin-new/fast/background-capitol-postnuke-green.jpg",
