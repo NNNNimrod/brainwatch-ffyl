@@ -461,7 +461,9 @@
     var rs = c.bossRiseFromDomeSec != null ? c.bossRiseFromDomeSec : burst + 0.15;
     var rd = Math.max(0.2, c.bossRiseDurSec != null ? c.bossRiseDurSec : 2.5);
     var pg = c.bossDomePreGlowStartSec != null ? c.bossDomePreGlowStartSec : 184.6;
-    return { on: on, crackStart: cs, crackDur: cd, burst: burst, riseStart: rs, riseDur: rd,
+    var dly = +(c.bossEmergeDelaySec || 0);   // sega56: whole crack / burst / rise / hover / approach sequence shifted later
+    if (dly) { cs += dly; burst += dly; rs += dly; pg += dly; }
+    return { on: on, delay: dly, crackStart: cs, crackDur: cd, burst: burst, riseStart: rs, riseDur: rd,
       preGlowOn: c.bossDomePreGlowOn !== false, preGlow: pg };
   }
   // sega54: fire colour-cycling + crack overlays, built once from the 320x120 masks (R = phase/order, G = level)
@@ -542,6 +544,50 @@
     if (kind === "body") return Math.max(14, Math.round(px * 1.3 * sc / 2) * 2) + "px " + (c.uiFontBody || '"VT323", "Courier New", monospace');
     return Math.max(8, Math.round(px * 0.62 * sc / 8) * 8) + "px " + (c.uiFontTitle || '"Press Start 2P", "Courier New", monospace');
   }
+  // sega56: Capitol plate vertical offset. bossBgCapitolOffsetY <= 1 = fraction of the plate band height, > 1 = canvas px.
+  function capitolOffsetY56(c, height, cfgBg) {
+    var v = +(c.bossBgCapitolOffsetY || 0);
+    if (!v) return 0;
+    return Math.abs(v) <= 1 ? v * height * (cfgBg.austinBgSingleHFrac != null ? cfgBg.austinBgSingleHFrac : 0.55) : v;
+  }
+  // sega56: chunky GRAY pixel debris spraying over the dome at the burst (procedural 4-px-grid chunks, deterministic):
+  // burst outward from all over the dome, gravity, tumbling in 90-degree steps, dark edges, fade over the last 30%.
+  var DEB56_SHAPES = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [2, 0], [1, 1]], [[0, 0], [0, 1], [1, 1], [1, 2]]];
+  function drawDomeDebris56(state, ctx, r, ppx, bt) {
+    var c = state.config || {};
+    var dur = Math.max(0.3, c.bossDomeDebrisSec != null ? +c.bossDomeDebrisSec : 1.8);
+    if (!(bt >= 0 && bt < dur)) return;
+    var n = Math.max(0, Math.round(c.bossDomeDebrisCount != null ? +c.bossDomeDebrisCount : 70));
+    var spd = c.bossDomeDebrisSpeed != null ? +c.bossDomeDebrisSpeed : 1.0;
+    var cols = ["#5a5a5a", "#8a8a8a", "#c0c0c0", "#8a8a8a", "#6e6e6e"], G = 560, cell = 4, i, j;
+    var cy0 = (c.bossDomeCavityY != null ? c.bossDomeCavityY : 138);
+    var fade = Math.min(1, Math.max(0, (dur - bt) / (dur * 0.3)));
+    var ga = ctx.globalAlpha;
+    for (i = 0; i < n; i++) {
+      var h1 = Math.sin(i * 12.9898 + 1.7) * 43758.5453; h1 -= Math.floor(h1);
+      var h2 = Math.sin(i * 78.233 + 3.1) * 12345.678; h2 -= Math.floor(h2);
+      var h3 = Math.sin(i * 39.425 + 0.3) * 24634.634; h3 -= Math.floor(h3);
+      var ang = -Math.PI / 2 + (h1 * 2 - 1) * 1.45;                    // mostly up/out, all around the dome
+      var sp = (140 + h2 * 300) * spd;
+      var sx = 640 + Math.cos(ang) * (18 + h3 * 52), sy = cy0 - 30 + Math.sin(ang) * (14 + h3 * 40);   // start all over the dome
+      var px = sx + Math.cos(ang) * sp * bt, py = sy + Math.sin(ang) * sp * bt + 0.5 * G * bt * bt;
+      if (py > 470) continue;
+      var sh = DEB56_SHAPES[Math.floor(h3 * DEB56_SHAPES.length) % DEB56_SHAPES.length];
+      var sc = h2 > 0.75 ? 2 : 1;                                      // a few bigger chunks
+      var rot = h1 > 0.3 ? Math.floor(bt * (3 + h3 * 9) + h2 * 4) % 4 : 0;   // tumbling (90-degree steps)
+      var col = cols[i % cols.length];
+      var bx = Math.round(px / cell) * cell, by = Math.round(py / cell) * cell;
+      ctx.globalAlpha = ga * fade;
+      for (j = 0; j < sh.length; j++) {
+        var ux = sh[j][0], uy = sh[j][1], tx;
+        for (var q = 0; q < rot; q++) { tx = ux; ux = -uy; uy = tx; }
+        var X = r.x + (bx + ux * cell * sc) * ppx, Y = r.y + (by + uy * cell * sc) * ppx, S = cell * sc * ppx;
+        ctx.fillStyle = "#2a2a2a"; ctx.fillRect(X + S * 0.5, Y + S * 0.5, S, S);   // dark edge (lower-right)
+        ctx.fillStyle = col; ctx.fillRect(X, Y, S, S);
+      }
+    }
+    ctx.globalAlpha = ga;
+  }
   function drawCapitolFx54(state, ctx, key, r, img54) {
     if (!r || key.indexOf("capitol-") !== 0) return;
     var c = state.config || {};
@@ -595,7 +641,7 @@
       ctx.restore();
       if (ck) ctx.drawImage(ck, r.x + vx * ppx, r.y + vy * ppx, r.w, r.h);   // cracks shake with the dome
     }
-    if (dv.on && !green && t >= dv.burst && t < dv.burst + 2.2) {
+    if (dv.on && !green && t >= dv.burst && t < dv.burst + Math.max(2.2, (c.bossDomeDebrisSec || 0) + 0.1)) {
       var bt = t - dv.burst;
       // burst flash (pink/white, blocky)
       if (bt < 0.5) {
@@ -607,7 +653,9 @@
         ctx.restore();
       }
       // falling chunks of dome (deterministic): pieces fly up/out, then fall, snapped to the 4-px Sega grid
-      var n = Math.max(0, c.bossDomeChunkCount != null ? c.bossDomeChunkCount : 18), i2;
+      // sega56: bossDomeDebrisOn -> chunky gray pixel debris instead of the old tan chunks
+      if (c.bossDomeDebrisOn !== false) drawDomeDebris56(state, ctx, r, ppx, bt);
+      var n = c.bossDomeDebrisOn !== false ? 0 : Math.max(0, c.bossDomeChunkCount != null ? c.bossDomeChunkCount : 18), i2;
       var cols = ["#d8b890", "#9a7a5a", "#e6cfb4", "#3a1a10", "#ffb040"];
       for (i2 = 0; i2 < n; i2++) {
         var h1 = Math.sin(i2 * 12.9898) * 43758.5453; h1 -= Math.floor(h1);
@@ -915,12 +963,27 @@
     return (0.5 - Math.max(0, Math.min(1, ax))) * slack;
   }
 
+  // sega56: which mask the loaded verse-1 night plate uses. Loaded path = photoNightSynthSmoothPath (level 0),
+  // photoNightSynthFallbackPath (1) or photoNightSynthFallback2Path (2). -07 file -> photoNightSynthMaskKey (Larry D. Moore #07),
+  // -fullres (Seeger) -> photoNightSynthFullresMaskKey; anything else -> the original night-synth mask.
+  function nightMask56(state) {
+    var c = state.config || {};
+    if (c.photoPlatesSmooth === false) return null;
+    var lvl = +state._nightSynthFallback56 || 0;
+    var p = String([c.photoNightSynthSmoothPath, c.photoNightSynthFallbackPath, c.photoNightSynthFallback2Path][lvl] || "");
+    if (/-07(-fullres)?\./i.test(p)) return { key: c.photoNightSynthMaskKey || "night07", near: c.photoNightSynthNearFrac, tops: c.photoNightSynthNearTopsOn !== false };
+    if (/-fullres\./i.test(p)) return { key: c.photoNightSynthFullresMaskKey || "clean", near: c.photoNightSynthFullresNearFrac, tops: false };
+    return null;
+  }
   function skylineTopsFor(state, key) {
     var m = (state.config && state.config.skylineMask) || {};
     // sega54 build: PHOTO plate set -> its own skyline masks (same keys)
     var mp = (state.config && state.config.photoPlatesOn !== false && state.config.skylineMaskPhoto) || null;
     if (mp) {
-      if (key === "night-synth") return mp["night-synth"] || null;
+      if (key === "night-synth") { // sega56: #07 / Seeger full-res night plates use their own masks
+        var nm56 = nightMask56(state); if (nm56 && mp[nm56.key]) return mp[nm56.key];
+        return mp["night-synth"] || null;
+      }
       if (key === "dusk-clean" || key === "violet") return mp.clean || null;
       if (key === "dusk" || key === "acid") return mp[key] || null;
       if (key === "greenbelt" && (state.config.greenbeltPlateMode || "classic") !== "classic") return mp.greenbelt || null; // sega55
@@ -981,6 +1044,7 @@
     var baseA = ctx.globalAlpha;
     // sega52: startBgFadeInSec — Austin plate fades in from black over the first N s of the run (smoothstep)
     var sfSec = cfgPz.startBgFadeInSec != null ? cfgPz.startBgFadeInSec : 0;
+    if (cfgPz.introFadeOn === true) sfSec = 0; // sega56: the whole-scene intro fade supersedes the bg-only fade (no double darkening)
     if (sfSec > 0 && state.phase === "running" && !state.postNukeFire) {
       var sfT = state.songClock != null ? state.songClock : 0;
       if (sfT < sfSec) {
@@ -1002,19 +1066,27 @@
       var jolt = capitolJolt54(state, mix[i].key);
       if (jolt) { pz *= jolt.s; }
       var jx = jolt ? jolt.x : 0, jy = jolt ? jolt.y : 0;
+      // sega56: bossBgCapitolOffsetY - Capitol plates (+ fire/crack masks, dome FX, cavity hand-off) drawn lower
+      var capOy = mix[i].key.indexOf("capitol-") === 0 ? capitolOffsetY56(cfgPz, height, cfgBg) : 0;
+      if (capOy) { ctx.save(); ctx.translate(0, capOy); }
       if (pz !== 1 || jolt) { ctx.save(); ctx.translate(width / 2 + jx, anchorY + jy); ctx.scale(pz, pz); ctx.translate(-width / 2, -anchorY); }
       r = (mix[i].key.indexOf("capitol-") !== 0) ? drawLayeredPlate55(state, ctx, mix[i].key, mix[i].img, width, height, cfgBg, scrollOff, pnx, pz, offX, anchorY) : null; // sega55 bgLayersOn
       if (!r) r = drawBgSingleLayer(ctx, mix[i].img, width, height, cfgBg, scrollOff, pnx);
+      if (r && capOy > 0) { // sega56: fill the band above the lowered plate with its own top rows (no gap)
+        try { ctx.drawImage(mix[i].img, 0, 0, mix[i].img.width, 3, r.x, r.y - capOy - 2, r.w, capOy + 3); } catch (eCo) {}
+      }
       if (r && mix[i].key.indexOf("capitol-") === 0) {
         drawCapitolFx54(state, ctx, mix[i].key, r, mix[i].img);
         if (mix[i].key.indexOf("capitol-fire") === 0) {   // dome cavity in screen px (for the boss rise hand-off)
           var dcY = (cfgPz.bossDomeCavityY != null ? cfgPz.bossDomeCavityY : 138);
           var lx = width / 2 + (r.x + r.w * 0.5 - width / 2) * pz, ly = anchorY + (r.y + r.h * (dcY / 480) - anchorY) * pz;
+          ly += capOy; // sega56
           state._capitolDomeXY = { x: width / 2 + offX + (lx - width / 2) * zsc, y: anchorY + offY + (ly - anchorY) * zsc,
             ppx: (r.w / 1280) * zsc * pz };
         }
       }
       if (pz !== 1 || jolt) ctx.restore();
+      if (capOy) ctx.restore(); // sega56
       if (jolt) r = null; // the lightning clip rect follows the steady fiery base, not the jolting green
       if (r) rect = r;
     }
@@ -1141,6 +1213,21 @@
   function L55cfg(c, k, d) { return c[k] != null ? c[k] : d; }
   function L55keys(c) { return c.bgLayersKeys || ["night-synth", "dusk-clean", "violet", "greenbelt", "austin-free", "austin-free-synth", "dusk", "acid"]; }
   function L55canvas(w, h) { var cv = document.createElement("canvas"); cv.width = w; cv.height = h; return cv; }
+  // sega56: #07 night plate CLOUD LAYER - clean sky gradient (night07SkyCleanPath) + cloud RGBA tile (night07CloudPath,
+  // 2W x H/2: clouds | mirrored clouds, inpainted behind the towers) drawn between SKY and FAR, drifting + own parallax.
+  var cl56 = { sky: null, cloud: null };
+  function night07Clouds56(state, key) {
+    var c = state.config || {};
+    if (key !== "night-synth" || c.night07CloudLayerOn === false) return null;
+    var nm = nightMask56(state); if (!nm || nm.key !== (c.photoNightSynthMaskKey || "night07")) return null;
+    function ld(k, p) {
+      if (!cl56[k]) { cl56[k] = new Image(); cl56[k].src = p + (typeof ASSET_V !== "undefined" ? "?v=" + ASSET_V : ""); }
+      return (cl56[k].complete && cl56[k].width > 0) ? cl56[k] : null;
+    }
+    var sk = ld("sky", c.night07SkyCleanPath || "images/bg-austin-new/fast/night07-skyclean-56.jpg");
+    var cd = ld("cloud", c.night07CloudPath || "images/bg-austin-new/fast/night07-clouds-56.png");
+    return (sk && cd) ? { sky: sk, cloud: cd } : null;
+  }
   function L55build(state, key, img) {
     var c = state.config || {};
     var W = img.width, H = img.height;
@@ -1148,10 +1235,15 @@
     if (!tops || !tops.length || !(W > 0)) return null;
     var nf = (c.bgLayerNearFracByKey || {})[key];
     if (nf == null) nf = 0.82;
+    // sega56: night plate near line (flat) + optional per-column tree-canopy near line (skylineNearPhoto[maskKey], 128 fracs)
+    var nm56 = key === "night-synth" ? nightMask56(state) : null, nearTops = null;
+    if (nm56 && nm56.near != null) nf = +nm56.near;
+    if (nm56 && nm56.tops && c.skylineNearPhoto && c.skylineNearPhoto[nm56.key] && c.skylineNearPhoto[nm56.key].length) nearTops = c.skylineNearPhoto[nm56.key];
     var nearY = Math.round(H * nf), n = tops.length, i, x0, x1, ty;
-    var sm = /-smooth\.(jpe?g|png)(\?|$)/i.test(img.src || img.currentSrc || "");
+    var sm = /-(smooth|fullres)\.(jpe?g|png)(\?|$)/i.test(img.src || img.currentSrc || ""); // sega56: + -fullres
     // SKY: plate with the building region replaced by the sky just above the silhouette (stretched down, then blurred)
     var sky = L55canvas(W, H), sx = sky.getContext("2d");
+    var CL56 = night07Clouds56(state, key); // sega56
     sx.drawImage(img, 0, 0);
     for (i = 0; i < n; i++) {
       x0 = Math.floor(i * W / n); x1 = Math.ceil((i + 1) * W / n);
@@ -1164,17 +1256,29 @@
     for (i = 0; i < n; i++) { sx.lineTo(i * W / n, Math.max(0, tops[i] * H - 8)); sx.lineTo((i + 1) * W / n, Math.max(0, tops[i] * H - 8)); }
     sx.lineTo(W, H); sx.closePath(); sx.clip(); sx.imageSmoothingEnabled = true;
     sx.drawImage(bl, 0, 0, bl.width, bl.height, 0, 0, W, H); sx.restore();
+    if (CL56) { sx.save(); sx.globalCompositeOperation = "source-over"; sx.imageSmoothingEnabled = true; sx.drawImage(CL56.sky, 0, 0, W, H); sx.restore(); } // sega56: clean gradient, clouds are their own layer
     // FAR: silhouette polygon (skyline tops .. near line)
     var far = L55canvas(W, H), fx = far.getContext("2d");
     fx.save(); fx.beginPath(); fx.moveTo(0, nearY + 2);
     for (i = 0; i < n; i++) { fx.lineTo(i * W / n, tops[i] * H - 1); fx.lineTo((i + 1) * W / n, tops[i] * H - 1); }
-    fx.lineTo(W, nearY + 2); fx.closePath(); fx.clip(); fx.drawImage(img, 0, 0); fx.restore();
+    if (nearTops) { // sega56: far layer ends at the tree canopy (per column), right -> left
+      fx.lineTo(W, nearTops[nearTops.length - 1] * H + 3);
+      for (i = nearTops.length - 1; i >= 0; i--) { fx.lineTo((i + 1) * W / nearTops.length, nearTops[i] * H + 3); fx.lineTo(i * W / nearTops.length, nearTops[i] * H + 3); }
+    } else fx.lineTo(W, nearY + 2);
+    fx.closePath(); fx.clip(); fx.drawImage(img, 0, 0); fx.restore();
     // NEAR: rows below the near line, soft top edge
     var near = L55canvas(W, H), nx = near.getContext("2d");
     nx.drawImage(img, 0, 0);
     nx.globalCompositeOperation = "destination-in";
     var g = nx.createLinearGradient(0, nearY - 6, 0, nearY + 4); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,1)");
-    nx.fillStyle = g; nx.fillRect(0, 0, W, H); nx.globalCompositeOperation = "source-over";
+    if (nearTops) { // sega56: near layer = trees below the canopy line (per column), not a flat line
+      nx.fillStyle = "#000"; nx.beginPath(); nx.moveTo(0, H);
+      for (i = 0; i < nearTops.length; i++) { nx.lineTo(i * W / nearTops.length, nearTops[i] * H); nx.lineTo((i + 1) * W / nearTops.length, nearTops[i] * H); }
+      nx.lineTo(W, H); nx.closePath(); nx.fill();
+    } else {
+      nx.fillStyle = g; nx.fillRect(0, 0, W, H);
+    }
+    nx.globalCompositeOperation = "source-over";
     // LIGHTS (half res, white with alpha): bright windows (or fires on post-nuke plates); SIL: black silhouette of FAR
     var hw = W >> 1, hh = H >> 1, lights = L55canvas(hw, hh), lx = lights.getContext("2d"), fire = (key === "dusk" || key === "acid");
     lx.drawImage(far, 0, 0, hw, hh);
@@ -1192,13 +1296,13 @@
     slx.drawImage(far, 0, 0, hw, hh); slx.globalCompositeOperation = "source-in"; slx.fillStyle = "#000"; slx.fillRect(0, 0, hw, hh);
     var tint = L55canvas(hw, hh);
     [sky, far, near, lights, sil].forEach(function(cv) { if (cv) cv._smooth54 = sm; });
-    return { sky: sky, far: far, near: near, lights: lights, sil: sil, tint: tint, tops: tops, nearF: nf, W: W, H: H, img: img, fire: fire };
+    return { sky: sky, far: far, near: near, lights: lights, sil: sil, tint: tint, tops: tops, nearF: nf, W: W, H: H, img: img, fire: fire, cloud: CL56 ? CL56.cloud : null, wantCloud: key === "night-synth" && !!(state.config || {}).photoNightSynthMaskKey };
   }
   function L55get(state, key, img) {
     var c = state.config || {};
     var cache = state._bgL55 || (state._bgL55 = { m: {}, order: [], builtT: -1 });
     var e = cache.m[key];
-    if (e && e.img === img) return e;
+    if (e && e.img === img && !(e.wantCloud && !e.cloud && !e.bad && night07Clouds56(state, key))) return e; // sega56: + rebuild when clouds load
     // at most one build per frame (spread the one-off cost)
     var now = (state.elapsed || 0);
     if (cache.builtT === now) return null;
@@ -1276,6 +1380,15 @@
       if (flashK > 0) { ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,245,220," + (0.85 * flashK) + ")"; ctx.fillRect(r.x, r.y, r.w, r.h * L.nearF); ctx.globalCompositeOperation = "source-over"; }
     }
     ctx.restore();
+    // ---- sega56: CLOUD layer (#07 night plate): continuous drift (wraps on the mirrored tile), parallax <= sky
+    if (L.cloud && c.night07CloudLayerOn !== false) {
+      var kC = L55cfg(c, "night07CloudParallax", 0.03), dps = L55cfg(c, "night07CloudDriftPxPerSec", 10);
+      ctx.save(); xf(kC, zS, 0, 0); ctx.beginPath(); ctx.rect(0, bandY, width, bandH); ctx.clip();
+      ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = "high"; } catch (eQ) {}
+      var tw = r.w * (L.cloud.width / (L.W || 1280)) , off = ((t * dps * (r.w / (L.W || 1280))) % tw + tw) % tw, ox;
+      for (ox = -off; ox < r.w; ox += tw) ctx.drawImage(L.cloud, r.x + ox, r.y, tw, r.h);
+      ctx.restore();
+    }
     // ---- FAR (reveals: post-nuke tower collapse / Greenbelt trees part)
     ctx.save(); xf(kF, zF, 0, 0); ctx.beginPath(); ctx.rect(0, bandY, width, bandH); ctx.clip();
     var sxW = r.w / L.W, syH = r.h / L.H, nearPx = r.y + r.h * L.nearF;
@@ -1406,7 +1519,7 @@
     var rot = scrollOn ? ((scrollOffset || 0) % 1) : 0;
     ctx.save();
     // sega55: untouched full-res photo plates (*-smooth.jpg, photoPlatesSmooth) draw with high-quality smoothing
-    if (background._smooth54 == null) background._smooth54 = /-smooth\.(jpe?g|png)(\?|$)/i.test(background.src || background.currentSrc || "");
+    if (background._smooth54 == null) background._smooth54 = /-(smooth|fullres)\.(jpe?g|png)(\?|$)/i.test(background.src || background.currentSrc || ""); // sega56: + -fullres
     if (background._smooth54) { ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = "high"; } catch (eSQ) {} }
     ctx.beginPath();
     ctx.rect(0, bandY, bandW, bandH);
@@ -3006,6 +3119,40 @@ function renderWorld(state) {
     }
   }
 
+  // sega56: intro fade — the whole game scene fades up from black from the run start to introFadeEndSec (VERSE 1 title, 8 s)
+  function introFadeK56(state) {
+    var c = state.config || {};
+    if (c.introFadeOn !== true || state.phase !== "running") return 1;
+    var end = Math.max(0.05, c.introFadeEndSec != null ? c.introFadeEndSec : 8);
+    var t = state.songClock != null ? state.songClock : 0;
+    if (t >= end) return 1;
+    var u = Math.max(0, Math.min(1, t / end)), cv = String(c.introFadeCurve || "easeIn");
+    if (cv === "linear") return u;
+    if (cv === "easeOut") return 1 - (1 - u) * (1 - u);
+    if (cv === "smooth") return u * u * (3 - 2 * u);
+    return u * u; // easeIn
+  }
+  function drawIntroFade56(state) {
+    var k = introFadeK56(state), c = state.config || {};
+    if (k < 0.999) {
+      var ctx = state.ctx;
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - k; ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "#000"; ctx.fillRect(0, 0, Math.max(state.width, ctx.canvas.width), Math.max(state.height, ctx.canvas.height));
+      ctx.restore();
+    }
+    // introFadeIncludeUi: a page-wide black veil (pointer-events none, buttons stay tappable) over HUD / lyrics / buttons too
+    var want = (c.introFadeIncludeUi === true && k < 0.999) ? (1 - k) : 0;
+    if (state._introVeil56 !== want) {
+      state._introVeil56 = want;
+      try {
+        var v = document.getElementById("introFadeVeil56");
+        if (!v && want > 0) { v = document.createElement("div"); v.id = "introFadeVeil56";
+          v.style.cssText = "position:fixed;inset:0;background:#000;pointer-events:none;z-index:2147483000;opacity:0"; document.body.appendChild(v); }
+        if (v) v.style.opacity = String(want);
+      } catch (eV) {}
+    }
+  }
+
   ns.Renderer = {
     domeReveal54: domeReveal54, // sega54: boss rise hand-off (brains.js)
     render: function(state) {
@@ -3042,6 +3189,7 @@ function renderWorld(state) {
         }
         renderEffects(state);
         if (shake) { state.ctx.restore(); shake = null; }
+        drawIntroFade56(state); // sega56: whole-scene intro fade (canvas UI banners below stay readable)
         renderNukeFlash(state);
         renderNukeDetFlash(state);
         renderInvasion(state);

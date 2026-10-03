@@ -499,7 +499,9 @@
     var tx = laneScreenX(state, rwHerLane(state)), ty = playerElevAimY(state);
     var x = b.dsx + (tx - b.dsx) * e, y = b.dsy + (ty - b.dsy) * e;
     b.throb = (b.throb || 0) + dt * 12;
-    var sc = b.ds0 * (1 - 0.35 * e) * (1 + 0.1 * Math.sin(b.throb));
+    var cG = state.config || {};
+    var shr = (b.isBoss && cG.bossGameOverScale != null && +cG.bossGameOverScale > 0) ? 0 : 0.35; // sega56: boss no longer shrinks at the doom (scaled up at draw)
+    var sc = b.ds0 * (1 - shr * e) * (1 + 0.1 * Math.sin(b.throb));
     b.x = x; b.baseY = y; b.y = y; b.drawScale = sc; b.fadeAlpha = 1;
     b.telegraph = Math.max(0.001, b.dsec * (1 - b.dpu)); // glow ramps to full on arrival
     var sz = (b.radius || 20) * 2.4 * sc;
@@ -679,7 +681,7 @@
       var aliveM = 0;
       for (var j = 0; j < state.brains.length; j++) { var bm = state.brains[j]; if (bm && bm.rwMedium && bm.alive && !bm.exitShrink) aliveM++; }
       if (R.phaseT >= rwCfg(state, "bossMediumPhaseMaxSec", 9)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; }
-      if (R.domeFight && ue >= 1 && t >= rwCfg(state, "bossDomeMediumEndBySec", 200.5)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; } // sega54
+      if (R.domeFight && ue >= 1 && t >= rwCfg(state, "bossDomeMediumEndBySec", 200.5) + (+rwCfg(state, "bossEmergeDelaySec", 0) || 0)) { rwShrinkOut(state, function(b) { return b.rwMedium; }); aliveM = 0; } // sega54
       if (aliveM === 0 && ue >= 1) { go("rwDrop"); R.dropAcc = 0; R.dropLane = rwHerLane(state); }
       return;
     }
@@ -1174,11 +1176,15 @@
     state.eventTimer = state.config.eventFeedDuration;
   }
 
-  function damageBrain(state, brain, amount) {
+  function damageBrain(state, brain, amount, hx, hy) {
     if (!brain || !brain.alive || brain.bossDying) {
       return;
     }
     brain.hitFlash = 1;
+    // sega56: bossHitBloodOn - the road-corpse blood splat at the wound on the boss (sticks, drips, fades)
+    if (brain.isBoss && !(state.config && state.config.bossHitBloodOn === false) && ns.RoadBodies54 && ns.RoadBodies54.bossBlood) {
+      try { ns.RoadBodies54.bossBlood(state, brain, hx, hy); } catch (eBl) {}
+    }
     // sega30: boss survive at 0 HP until all non-boss brains are dead; then final shot kills
     if (brain.isBoss && state.config && state.config.bossSurviveAtZeroUntilAddsClear !== false) {
       var addsAlive = nonBossBrainsAlive(state);
@@ -1325,7 +1331,7 @@
           var bdy0 = (brain.baseY + Math.sin(brain.bobPhase) * brain.bobAmp) - shot.y;
           var hitR0 = brain.radius * (homingOn ? 1.4 : 1.15);
           if (homingOn || (bdx0 * bdx0 + bdy0 * bdy0) <= hitR0 * hitR0) {
-            damageBrain(state, brain, dmg);
+            damageBrain(state, brain, dmg, shot.x, shot.y);
             didHit = true;
           }
         } else if (shot.targetCar) {
@@ -1348,7 +1354,7 @@
         var bdy = (brain.baseY + Math.sin(brain.bobPhase) * brain.bobAmp) - shot.y;
         hitR = brain.radius * 0.85;
         if ((bdx * bdx + bdy * bdy) < hitR * hitR) {
-          damageBrain(state, brain, dmg);
+          damageBrain(state, brain, dmg, shot.x, shot.y);
           state.shots.splice(n, 1);
           continue;
         }
@@ -2078,6 +2084,36 @@
     _bossHalo = cv; _bossHaloKey = color;
     return cv;
   }
+  // sega56: brain vein fill. images/fx/brain-veins-56.png (PIL-made, 300x150): left = interior see-through mask of the
+  // 150x150 BRAIN sprite, right = vein highlight subset. Tinted once to brainVeinColor / brainVeinHighlight (cached canvas).
+  var veins56 = { img: null, cv: null, key: "", failed: false };
+  function brainVeins56(state, sprite) {
+    var c = state.config || {};
+    if (c.brainVeinFillOn === false || veins56.failed || typeof document === "undefined") return null;
+    if (!veins56.img) {
+      veins56.img = new Image();
+      veins56.img.onerror = function() { veins56.failed = true; };
+      veins56.img.src = (c.brainVeinPath || "images/fx/brain-veins-56.png") + (typeof ASSET_V !== "undefined" ? "?v=" + ASSET_V : "");
+      return null;
+    }
+    var im = veins56.img;
+    if (!im.complete || !(im.width > 0)) return null;
+    var w = sprite.w, h = sprite.h, key = (c.brainVeinColor || "#ffe600") + "|" + (c.brainVeinHighlight || "#d9b800") + "|" + w + "x" + h;
+    if (veins56.cv && veins56.key === key) return veins56.cv;
+    try {
+      var cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      var x = cv.getContext("2d"), hw = im.width / 2;
+      x.drawImage(im, 0, 0, hw, im.height, 0, 0, w, h);
+      x.globalCompositeOperation = "source-in"; x.fillStyle = c.brainVeinColor || "#ffe600"; x.fillRect(0, 0, w, h);
+      var hc = document.createElement("canvas"); hc.width = w; hc.height = h;
+      var hx = hc.getContext("2d");
+      hx.drawImage(im, hw, 0, hw, im.height, 0, 0, w, h);
+      hx.globalCompositeOperation = "source-in"; hx.fillStyle = c.brainVeinHighlight || "#d9b800"; hx.fillRect(0, 0, w, h);
+      x.globalCompositeOperation = "source-over"; x.drawImage(hc, 0, 0);
+      veins56.cv = cv; veins56.key = key;
+      return cv;
+    } catch (eV) { veins56.failed = true; return null; }
+  }
   function drawBossHalo(ctx, state, brain, x, y, r, throbScale, fadeA) {
     var c = state.config || {};
     if (c.bossGlowOn === false) return;
@@ -2111,6 +2147,18 @@
     var i;
     var a;
     var throbScale = (brain.drawScale != null) ? brain.drawScale : (1 + 0.12 * Math.sin(brain.throb || 0));
+    // sega56 (fix): final death / game over (doom, deadline defeat, finale lost). At the first such frame the boss's
+    // EFFECTIVE on-screen size (all multipliers: approach/phase scale, throb, beat squash) is captured; from then on it is
+    // drawn at exactly cap x (1 -> bossGameOverScale, smoothstep over bossGameOverScaleSec) and held - no other factor applies.
+    var cGo = state.config || {}, go56 = null;
+    if (brain.isBoss && cGo.bossGameOverScale != null && +cGo.bossGameOverScale > 0) {
+      if (!brain.bossDying && !state.finaleWon && (state.bossDoom || state.bossDefeatBeat || state.finaleLost)) {
+        if (state._bossGo56At == null) { state._bossGo56At = state.elapsed || 0; state._bossGo56Cap = null; }
+        var goU = Math.max(0, Math.min(1, ((state.elapsed || 0) - state._bossGo56At) / Math.max(0.05, +(cGo.bossGameOverScaleSec != null ? cGo.bossGameOverScaleSec : 1.0))));
+        go56 = 1 + (+cGo.bossGameOverScale - 1) * goU * goU * (3 - 2 * goU);
+        if (state._bossGo56Cap) throbScale = state._bossGo56Cap.ts * go56; // halo / glow follow the frozen size
+      } else if (state._bossGo56At != null) { state._bossGo56At = null; state._bossGo56Cap = null; }
+    }
     var sprite = SPRITES.BRAIN;
     var sprites = state.sprites;
     var dw;
@@ -2149,6 +2197,11 @@
     if (sprites && sprite) {
       dw = r * 2.6 * throbScale * thX;
       dh = r * 2.6 * throbScale * thY;
+      if (go56 != null) { // sega56 (fix): freeze at the captured on-screen size, then scale that up
+        if (!state._bossGo56Cap) state._bossGo56Cap = { w: dw, h: dh, ts: throbScale };
+        dw = state._bossGo56Cap.w * go56; dh = state._bossGo56Cap.h * go56; thRed = 0;
+        state._bossGo56Now = { w: dw, capW: state._bossGo56Cap.w, m: go56, x: x, y: y };
+      }
       ctx.translate(x, y);
       if (flash > 0) {
         ctx.globalAlpha = 0.55 + flash * 0.45;
@@ -2158,6 +2211,8 @@
         ctx.filter = "sepia(1) saturate(6) hue-rotate(-50deg) brightness(1.3)"; // sega43 red tell
       }
       if (fadeA < 1) ctx.globalAlpha = fadeA * (flash > 0 ? 0.55 + flash * 0.45 : 1);
+      var vein56 = brainVeins56(state, sprite); // sega56: opaque dark-purple veins under the see-through fold gaps
+      if (vein56) ctx.drawImage(vein56, 0, 0, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
       ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
       if (thRed > 0.02) { // sega54: red flush on the beat (same red tell filter, faded by the pulse)
         ctx.filter = "sepia(1) saturate(6) hue-rotate(-50deg) brightness(1.2)";

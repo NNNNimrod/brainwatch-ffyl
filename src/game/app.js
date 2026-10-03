@@ -167,6 +167,22 @@
           im._austinKey = fastCritKeys[k];
           state.austinStrips[fastCritKeys[k]] = im;
           state._austinNewPlatesReady[fastCritKeys[k]] = "fast-critical";
+        } else if (fastCritKeys[k] === "night-synth" && (bootCfg.photoNightSynthFallbackPath || bootCfg.photoNightSynthFallback2Path)) {
+          // sega56: primary night plate (#07) failed -> photoNightSynthFallbackPath (Seeger -fullres) -> photoNightSynthFallback2Path
+          // (old -smooth upscale). state._nightSynthFallback56 = 1 / 2 picks the matching mask in the renderer.
+          (function(fk) {
+            var chain = [bootCfg.photoNightSynthFallbackPath, bootCfg.photoNightSynthFallback2Path];
+            function tryFb(lvl) {
+              if (lvl > 2) return;
+              var p = chain[lvl - 1]; if (!p) { tryFb(lvl + 1); return; }
+              var fb = new Image();
+              fb.onload = function() { fb._austinStrip = true; fb._austinKey = fk; state._nightSynthFallback56 = lvl;
+                state.austinStrips[fk] = fb; state._austinNewPlatesReady[fk] = "fallback" + lvl; };
+              fb.onerror = function() { tryFb(lvl + 1); };
+              fb.src = p + (window.ASSET_V ? "?v=" + window.ASSET_V : "");
+            }
+            tryFb(1);
+          })(fastCritKeys[k]);
         }
       }
       // sega24: bind roadside city/rubble PNGs onto SPRITES.*.img

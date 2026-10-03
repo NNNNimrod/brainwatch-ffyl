@@ -130,6 +130,36 @@
     bindBtn(refs.trainerCloseTop);
   }
 
+
+  // sega56: THRUSTERS HACKED fit-to-width. Font size = CSS size x thrustersHackedScale, capped so the widest line
+  // (THRUSTERS) is <= thrustersHackedMaxWidthPct % of the banner width (0 = no cap). Cached per width/text.
+  var fit56Cv = null;
+  function fitPowerupTitle56(el, state) {
+    if (!el) return;
+    var c = (state && state.config) || {};
+    var sc = c.thrustersHackedScale != null ? +c.thrustersHackedScale : 1;
+    var pct = c.thrustersHackedMaxWidthPct != null ? +c.thrustersHackedMaxWidthPct : 90;
+    var w = el.clientWidth || 0;
+    var key = w + "|" + el.textContent + "|" + sc + "|" + pct;
+    if (el._fit56 === key) return;
+    el.style.fontSize = "";
+    var cs = window.getComputedStyle(el);
+    var base = parseFloat(cs.fontSize) || 32;
+    var fs = base * (sc > 0 ? sc : 1);
+    if (pct > 0 && w > 0) {
+      try {
+        fit56Cv = fit56Cv || document.createElement("canvas");
+        var cx = fit56Cv.getContext("2d");
+        cx.font = (cs.fontWeight || "900") + " 100px " + cs.fontFamily;
+        var lsEm = (parseFloat(cs.letterSpacing) || 0) / base;
+        var lines = String(el.textContent || "").split("\n"), mw = 0, i;
+        for (i = 0; i < lines.length; i++) mw = Math.max(mw, cx.measureText(lines[i]).width + lsEm * 100 * lines[i].length);
+        if (mw > 0) fs = Math.min(fs, (pct / 100) * w * 100 / mw);
+      } catch (eFit) {}
+    }
+    el.style.fontSize = Math.max(8, Math.floor(fs)) + "px";
+    el._fit56 = (!document.fonts || document.fonts.status === "loaded") ? key : "pending";
+  }
   function collectRefs() {
     return {
       playerHandle: Dom.get("player_handle"),
@@ -1404,6 +1434,16 @@
     if (refs.hits) refs.hits.textContent = String(state.hits || 0);
     if (refs.deaths) refs.deaths.textContent = String(state.deaths || 0);
     if (refs.powerups) refs.powerups.textContent = String(state.weaponPower != null ? state.weaponPower : (state.powerups || 0));
+    // sega56: hudBarWidthPct - HEALTH / POWER bars span this % of the game (stage) width, left-aligned (0 = old full width)
+    var hbP = (state.config && state.config.hudBarWidthPct != null) ? +state.config.hudBarWidthPct : 33;
+    if (refs._hudBarP56 !== hbP) {
+      var mEl = document.querySelector(".stage > .meters") || document.querySelector(".meters");
+      if (mEl) {
+        if (hbP > 0 && hbP < 100) { mEl.style.right = "auto"; mEl.style.width = hbP + "%"; }
+        else { mEl.style.right = ""; mEl.style.width = ""; }
+        refs._hudBarP56 = hbP;
+      }
+    }
     if (refs.deathFlash) {
       // sega28: Mad Max uses same death-flash DOM/CSS styling
       if (state.madMaxFlashTimer > 0) {
@@ -1412,12 +1452,15 @@
         refs.deathFlash.textContent = String((state.config && (state.config.powerupTitleText || state.config.madMaxBannerText)) || state.madMaxFlashText || "THRUSTERS HACKED").split(/\s+/).join("\n");
         refs.deathFlash.setAttribute("aria-hidden", "false");
         if (ns.Sega31 && ns.Sega31.styleMadMaxFlash) ns.Sega31.styleMadMaxFlash(refs.deathFlash, state);
+        fitPowerupTitle56(refs.deathFlash, state); // sega56: THRUSTERS / HACKED fit-to-width
       } else if (state.deathFlashTimer > 0) {
         // sega48: loserBloodFx false = no red blood tint behind DEATH (text kept)
+        if (refs.deathFlash._fit56) { refs.deathFlash.style.fontSize = ""; refs.deathFlash._fit56 = null; } // sega56
         refs.deathFlash.className = "death-flash on glow-red" + ((state.config && state.config.loserBloodFx === true) ? "" : " no-blood");
         refs.deathFlash.textContent = "DEATH";
         refs.deathFlash.setAttribute("aria-hidden", "false");
       } else {
+        if (refs.deathFlash._fit56) { refs.deathFlash.style.fontSize = ""; refs.deathFlash._fit56 = null; } // sega56
         refs.deathFlash.className = "death-flash hidden";
         refs.deathFlash.setAttribute("aria-hidden", "true");
       }

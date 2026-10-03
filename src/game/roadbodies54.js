@@ -55,6 +55,27 @@
     if (ns.Sfx && ns.Sfx.squish) { try { ns.Sfx.squish(); } catch (e) {} }
     if (cfg(state, "roadBodyNoDamage", true) === false) state.speed *= 0.85;
   }
+  // sega56: bossHitBlood - same splat (roadBodySplatParticles, COLS, pixel drops) at the wound on the boss, scaled to the
+  // boss's drawn size; drops spray out briefly, then STICK to the boss (follow it), drip down slowly and fade (bossHitBloodSec).
+  function bossBlood(state, boss, hx, hy) {
+    var R = rb(state);
+    var sz = (boss.screenRect && boss.screenRect.w) || ((boss.radius || 60) * 2.4 * (boss.drawScale || 1));
+    var k = Math.max(0.3, sz / 300) * cfg(state, "bossHitBloodScale", 1.0);
+    var life = Math.max(0.2, cfg(state, "bossHitBloodSec", 1.6));
+    var bx = boss.x || 0, by = boss.y || 0;
+    if (hx == null || hy == null) { hx = bx + (Math.random() - 0.5) * sz * 0.5; hy = by + (Math.random() - 0.3) * sz * 0.4; }
+    // keep the wound on the brain (inside ~40% of its size from the centre)
+    var dx = hx - bx, dy = hy - by, dm = Math.sqrt(dx * dx + dy * dy), lim = sz * 0.38;
+    if (dm > lim) { hx = bx + dx / dm * lim; hy = by + dy / dm * lim; }
+    var n = Math.max(0, Math.round(cfg(state, "roadBodySplatParticles", 34)));
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2, v = (60 + Math.random() * 200) * k;
+      R.parts.push({ boss56: boss, ox: hx - bx + (Math.random() - 0.5) * 8 * k, oy: hy - by + (Math.random() - 0.5) * 8 * k,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.8 - 40 * k, t: 0, spray: 0.12 + Math.random() * 0.1, life: life * (0.7 + Math.random() * 0.5),
+        s: Math.max(2, Math.round((2 + Math.floor(Math.random() * 4)) * k)), c: COLS[i % COLS.length], drip: (8 + Math.random() * 26) * k, x: hx, y: hy });
+    }
+    if (R.parts.length > 500) R.parts.splice(0, R.parts.length - 500);
+  }
   function updateBodies(state, dt) {
     var R = rb(state), N = state.segments.length, L = state.segmentLength || 200;
     if (!N) return;
@@ -89,6 +110,13 @@
     var H = state.height || 844, sp = Math.max(0.2, (state.speed || 0) / Math.max(1, state.maxSpeed || 1));
     for (var i = R.parts.length - 1; i >= 0; i--) {
       var q = R.parts[i]; q.t += dt;
+      if (q.boss56) { // sega56: boss wound blood - spray, then stick to the (moving) boss and drip
+        if (q.t >= q.life || !q.boss56.alive) { R.parts.splice(i, 1); continue; }
+        if (q.t < q.spray) { q.ox += q.vx * dt; q.oy += q.vy * dt; q.vx *= 0.86; q.vy *= 0.86; }
+        else q.oy += q.drip * dt;
+        q.x = (q.boss56.x || 0) + q.ox; q.y = (q.boss56.y || 0) + q.oy; q.stuck = q.t >= q.spray;
+        continue;
+      }
       if (q.t >= q.life || q.y > H + 20) { R.parts.splice(i, 1); continue; }
       if (!q.stuck) {
         q.vy += q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt;
@@ -102,6 +130,12 @@
     for (var i = 0; i < R.parts.length; i++) {
       var q = R.parts[i], a = 1 - Math.max(0, q.t / q.life - 0.7) / 0.3;
       ctx.globalAlpha = Math.max(0, Math.min(1, a)); ctx.fillStyle = q.c;
+      if (q.boss56) { // sega56: wound drops keep their shape + a wet highlight pixel, drip streak below
+        ctx.fillRect(Math.round(q.x), Math.round(q.y), q.s, q.s);
+        if (q.stuck) { ctx.fillRect(Math.round(q.x + q.s * 0.25), Math.round(q.y + q.s), Math.max(1, Math.round(q.s * 0.5)), Math.round(q.s * 0.8));
+          ctx.fillStyle = "#ff5a5a"; ctx.fillRect(Math.round(q.x), Math.round(q.y), Math.max(1, Math.round(q.s * 0.4)), Math.max(1, Math.round(q.s * 0.4))); }
+        continue;
+      }
       var s = q.stuck ? q.s + 1 : q.s;
       ctx.fillRect(Math.round(q.x), Math.round(q.y), s, q.stuck ? Math.max(1, Math.round(s * 0.6)) : s);
     }
@@ -162,5 +196,5 @@
   }
   if (!install()) { var tries = 0, iv = setInterval(function() { if (install() || ++tries > 200) clearInterval(iv); }, 25); }
   // sega54 build: splatTest kept for the API shape but INERT (no-op) in the shipped build
-  ns.RoadBodies54 = { splatTest: function() { return false; } };
+  ns.RoadBodies54 = { splatTest: function() { return false; }, bossBlood: bossBlood }; // sega56: + bossBlood
 })(window.ApexRacer = window.ApexRacer || {});
