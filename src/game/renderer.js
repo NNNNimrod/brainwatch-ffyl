@@ -553,27 +553,34 @@
   // sega56: chunky GRAY pixel debris spraying over the dome at the burst (procedural 4-px-grid chunks, deterministic):
   // burst outward from all over the dome, gravity, tumbling in 90-degree steps, dark edges, fade over the last 30%.
   var DEB56_SHAPES = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [1, 0], [0, 1]], [[0, 0], [1, 0], [0, 1], [1, 1]], [[0, 0], [1, 0], [2, 0], [1, 1]], [[0, 0], [0, 1], [1, 1], [1, 2]]];
-  function drawDomeDebris56(state, ctx, r, ppx, bt) {
+  function drawDomeDebris56(state, ctx, r, ppx, bt, wave) {
     var c = state.config || {};
     var dur = Math.max(0.3, c.bossDomeDebrisSec != null ? +c.bossDomeDebrisSec : 1.8);
     if (!(bt >= 0 && bt < dur)) return;
-    var n = Math.max(0, Math.round(c.bossDomeDebrisCount != null ? +c.bossDomeDebrisCount : 70));
+    var n = Math.max(0, Math.round(c.bossDomeDebrisCount != null ? +c.bossDomeDebrisCount : 200));
     var spd = c.bossDomeDebrisSpeed != null ? +c.bossDomeDebrisSpeed : 1.0;
+    // sega57: wider spread (bossDomeDebrisSpread scales angle + launch speed range), mixed sizes up to bossDomeDebrisSizeMax,
+    // wave 2 = a second, faster burst with its own seed (bossDomeDebrisWave2*)
+    var spr = c.bossDomeDebrisSpread != null ? +c.bossDomeDebrisSpread : 1.0;
+    var szMax = Math.max(1, Math.round(c.bossDomeDebrisSizeMax != null ? +c.bossDomeDebrisSizeMax : 2));
+    var seed = 0;
+    if (wave === 2) { n = Math.max(0, Math.round(c.bossDomeDebrisWave2Count != null ? +c.bossDomeDebrisWave2Count : 120)); spd *= 1.25; seed = 517; }
     var cols = ["#5a5a5a", "#8a8a8a", "#c0c0c0", "#8a8a8a", "#6e6e6e"], G = 560, cell = 4, i, j;
     var cy0 = (c.bossDomeCavityY != null ? c.bossDomeCavityY : 138);
     var fade = Math.min(1, Math.max(0, (dur - bt) / (dur * 0.3)));
     var ga = ctx.globalAlpha;
     for (i = 0; i < n; i++) {
-      var h1 = Math.sin(i * 12.9898 + 1.7) * 43758.5453; h1 -= Math.floor(h1);
-      var h2 = Math.sin(i * 78.233 + 3.1) * 12345.678; h2 -= Math.floor(h2);
-      var h3 = Math.sin(i * 39.425 + 0.3) * 24634.634; h3 -= Math.floor(h3);
-      var ang = -Math.PI / 2 + (h1 * 2 - 1) * 1.45;                    // mostly up/out, all around the dome
-      var sp = (140 + h2 * 300) * spd;
+      var ii = i + seed;
+      var h1 = Math.sin(ii * 12.9898 + 1.7) * 43758.5453; h1 -= Math.floor(h1);
+      var h2 = Math.sin(ii * 78.233 + 3.1) * 12345.678; h2 -= Math.floor(h2);
+      var h3 = Math.sin(ii * 39.425 + 0.3) * 24634.634; h3 -= Math.floor(h3);
+      var ang = -Math.PI / 2 + (h1 * 2 - 1) * Math.min(Math.PI * 0.62, 1.45 * spr);   // mostly up/out, all around the dome
+      var sp = (140 + h2 * 300 * spr) * spd;
       var sx = 640 + Math.cos(ang) * (18 + h3 * 52), sy = cy0 - 30 + Math.sin(ang) * (14 + h3 * 40);   // start all over the dome
       var px = sx + Math.cos(ang) * sp * bt, py = sy + Math.sin(ang) * sp * bt + 0.5 * G * bt * bt;
       if (py > 470) continue;
       var sh = DEB56_SHAPES[Math.floor(h3 * DEB56_SHAPES.length) % DEB56_SHAPES.length];
-      var sc = h2 > 0.75 ? 2 : 1;                                      // a few bigger chunks
+      var sc = 1 + Math.floor(Math.pow(h3 * 0.37 + h1 * 0.63, 2.2) * szMax * 1.2); if (sc > szMax) sc = szMax;   // sega57: mixed sizes
       var rot = h1 > 0.3 ? Math.floor(bt * (3 + h3 * 9) + h2 * 4) % 4 : 0;   // tumbling (90-degree steps)
       var col = cols[i % cols.length];
       var bx = Math.round(px / cell) * cell, by = Math.round(py / cell) * cell;
@@ -641,7 +648,8 @@
       ctx.restore();
       if (ck) ctx.drawImage(ck, r.x + vx * ppx, r.y + vy * ppx, r.w, r.h);   // cracks shake with the dome
     }
-    if (dv.on && !green && t >= dv.burst && t < dv.burst + Math.max(2.2, (c.bossDomeDebrisSec || 0) + 0.1)) {
+    var w2d57 = c.bossDomeDebrisWave2On !== false ? Math.max(0, c.bossDomeDebrisWave2DelaySec != null ? +c.bossDomeDebrisWave2DelaySec : 0.25) : 0;
+    if (dv.on && !green && t >= dv.burst && t < dv.burst + Math.max(2.2, (c.bossDomeDebrisSec || 0) + 0.1 + w2d57)) {
       var bt = t - dv.burst;
       // burst flash (pink/white, blocky)
       if (bt < 0.5) {
@@ -655,6 +663,7 @@
       // falling chunks of dome (deterministic): pieces fly up/out, then fall, snapped to the 4-px Sega grid
       // sega56: bossDomeDebrisOn -> chunky gray pixel debris instead of the old tan chunks
       if (c.bossDomeDebrisOn !== false) drawDomeDebris56(state, ctx, r, ppx, bt);
+      if (c.bossDomeDebrisOn !== false && c.bossDomeDebrisWave2On !== false) drawDomeDebris56(state, ctx, r, ppx, bt - w2d57, 2); // sega57 wave 2
       var n = c.bossDomeDebrisOn !== false ? 0 : Math.max(0, c.bossDomeChunkCount != null ? c.bossDomeChunkCount : 18), i2;
       var cols = ["#d8b890", "#9a7a5a", "#e6cfb4", "#3a1a10", "#ffb040"];
       for (i2 = 0; i2 < n; i2++) {
@@ -1785,6 +1794,26 @@
     return true;
   }
 
+  // sega57: violent screen shake for the Capitol break - ramps in (u^2) from the dome pre-glow to a peak of bossDomeShakePx at
+  // the burst, then decays (1-u)^2 over bossDomeShakeSec. Canvas px, jittery multi-frequency like the nuke shake.
+  function domeBreakShake57(state) {
+    var c = state.config || {};
+    if (c.bossDomeShakeOn === false || state.phase !== "running" || !state.postNukeFire) return null;
+    var px = c.bossDomeShakePx != null ? +c.bossDomeShakePx : 14;
+    if (!(px > 0)) return null;
+    var dv = domeReveal54(state);
+    if (!dv.on) return null;
+    var t = state.songClock != null ? state.songClock : 0;
+    var t0 = dv.preGlowOn ? Math.min(dv.preGlow, dv.crackStart) : dv.crackStart;
+    var dec = Math.max(0.05, c.bossDomeShakeSec != null ? +c.bossDomeShakeSec : 1.4);
+    var amp;
+    if (t < t0 || t > dv.burst + dec) return null;
+    if (t < dv.burst) { var u = (t - t0) / Math.max(0.1, dv.burst - t0); amp = px * (0.12 + 0.6 * u * u); }
+    else { var v = (t - dv.burst) / dec; amp = px * Math.pow(1 - v, 2) * (v < 0.08 ? 1.25 : 1); }
+    if (amp < 0.5) return null;
+    return { x: Math.round(amp * (Math.sin(t * 91.3) * 0.7 + (Math.random() * 2 - 1) * 0.45)),
+             y: Math.round(amp * 0.8 * (Math.cos(t * 77.9) * 0.7 + (Math.random() * 2 - 1) * 0.4)) };
+  }
   function nukeSegaShake(state) {
     if (!nukeSegaOn(state) || !(state._nukeSegaImgs && state._nukeSegaImgs.sky)) return null;
     var W = nukeWindow(state);
@@ -3169,6 +3198,8 @@ function renderWorld(state) {
           shake = shake ? { x: shake.x + chS.x, y: shake.y + chS.y } : chS;
         } else if (chT >= chD) state._carHitShakeAt = null;
       }
+      var dsk57 = domeBreakShake57(state); // sega57: Capitol dome crack / burst screen shake
+      if (dsk57) shake = shake ? { x: shake.x + dsk57.x, y: shake.y + dsk57.y } : dsk57;
       if (shake) {
         state.ctx.save();
         state.ctx.fillStyle = "#000";
@@ -3182,8 +3213,11 @@ function renderWorld(state) {
         if (ns.Brains && ns.Brains.render && !(ns.Sega31 && ns.Sega31.trainerOn && !ns.Sega31.trainerOn(state, "showBrains"))) {
           ns.Brains.render(state);
         }
-        // sega31k: player always in front of brains
+        // sega31k: player in front of brains (sega57: except tunnel brains nearer than her, drawn right after her)
         drawPlayerDeferred(state);
+        if (ns.Brains && ns.Brains.renderFront && !(ns.Sega31 && ns.Sega31.trainerOn && !ns.Sega31.trainerOn(state, "showBrains"))) {
+          ns.Brains.renderFront(state);
+        }
         if (ns.Fx && ns.Fx.render && !(ns.Sega31 && ns.Sega31.trainerOn && !ns.Sega31.trainerOn(state, "showFx"))) {
           ns.Fx.render(state);
         }

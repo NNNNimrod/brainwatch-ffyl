@@ -807,7 +807,7 @@
     bossDomePreGlowOn: true,
     bossDomePreGlowStartSec: 184.6,
     bossDomePreGlowFlashHz: 4.3,
-    bossDomeVibratePx: 3,
+    bossDomeVibratePx: 8, // sega57: 3 -> 8 (dome vibration, plate px)
     bossDomeVibrateHz: 22,
     bossThrobOn: true,
     bossThrobScale: 0.14,
@@ -826,9 +826,21 @@
     bossEmergeDelaySec: 3.0,        // sega56: pre-glow / crack / burst / rise / hover / approach all start this much later (+ mediums end-by); doom unchanged
     bossBgCapitolOffsetY: 0.1,      // sega56: Capitol plates + masks/FX drawn lower (<= 1 = fraction of the plate band height, > 1 = canvas px)
     bossDomeDebrisOn: true,         // sega56: chunky GRAY pixel debris sprays over the dome at the burst (replaces the tan chunks)
-    bossDomeDebrisCount: 70,        // sega56: debris chunks
+    bossDomeDebrisCount: 200,       // sega57: 70 -> 200 (sega56: debris chunks)
     bossDomeDebrisSec: 1.8,         // sega56: debris lifetime (fade over the last 30%)
-    bossDomeDebrisSpeed: 1.0,       // sega56: debris burst speed multiplier
+    bossDomeDebrisSpeed: 1.35,      // sega57: 1.0 -> 1.35 (debris burst speed multiplier)
+    bossDomeShakeOn: true, // sega57: violent screen shake through the Capitol dome crack / burst
+    bossDomeShakePx: 14, // sega57: dome-break screen shake peak (canvas px) at the burst; ramps in from the pre-glow
+    bossDomeShakeSec: 1.4, // sega57: shake decay after the burst (s)
+    bossDomeDebrisSpread: 1.35, // sega57: debris spread x (wider angle + launch speed range)
+    bossDomeDebrisSizeMax: 3, // sega57: biggest debris chunk (x 4-px cells; mixed 1..max)
+    bossDomeDebrisWave2On: true, // sega57: second debris wave just after the burst
+    bossDomeDebrisWave2Count: 120, // sega57: wave-2 debris chunks (1.25x faster)
+    bossDomeDebrisWave2DelaySec: 0.25, // sega57: wave-2 delay after the burst (s)
+    bossEmergeThrobOn: true, // sega57: strong boss throb from the dome crack through the rise
+    bossEmergeThrobAmp: 0.12, // sega57: emerge throb amplitude (+/- scale fraction)
+    bossEmergeThrobHz: 4.3, // sega57: emerge throb rate (4.3 Hz = 2x the 129 BPM beat)
+    bossEmergeThrobEaseSec: 1.0, // sega57: ease back into the normal throb after the rise (s)
     bossHitBloodOn: true,           // sega56: road-corpse blood splat at the wound each time she hits the boss
     bossHitBloodScale: 1.0,         // sega56: splat size x (auto-scaled to the boss's drawn size)
     bossHitBloodSec: 1.6,           // sega56: wound blood sticks, drips and fades over this long
@@ -1072,6 +1084,9 @@
     tunnelBrainMinGapSec: 0.8, // other lane may not get a brain within this many sec (never both lanes blocked)
     tunnelBrainTinyScale: 0.5,
     tunnelBrainMediumScale: 1.25,
+    tunnelBrainDepthSortOn: true, // sega57: tunnel brains drawn IN FRONT of her once nearer than her (off = always behind, hit at u 0.97)
+    tunnelBrainFrontAtU: 1.0, // sega57: path depth u (0 horizon .. 1 at her) from which a tunnel brain draws in front of her
+    tunnelBrainHitAtU: 1.0, // sega57: same-lane hit fires at this depth u (old fixed 0.97); keep = tunnelBrainFrontAtU so hit = overlap
     tunnelBrainDamage: null, // null = medium brainZap damage
     tunnelEntranceAsset: 'images/fx/tunnel-portal-v2.png', // sega52: glowing portal in the hills (was tunnel-entrance.png)
     tunnelEntranceContentFrac: 0.67, // sega33: source-crop black void below content

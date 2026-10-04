@@ -1800,7 +1800,12 @@
     var size = (brain.radius || 16) * 2.4 * brain.drawScale;
     brain.screenRect = { x: brain.x - size / 2, y: brain.y - size / 2, w: size, h: size };
     if (brain.hitFlash > 0) brain.hitFlash = Math.max(0, brain.hitFlash - dt * 4);
-    if (!brain._tunnelHitDone && u >= 0.97) {
+    // sega57: hit only once the brain reaches HER depth (same u as the depth sort), was a fixed u 0.97
+    var hitU57 = 0.97;
+    if (c.tunnelBrainDepthSortOn !== false) {
+      hitU57 = c.tunnelBrainHitAtU != null ? +c.tunnelBrainHitAtU : (c.tunnelBrainFrontAtU != null ? +c.tunnelBrainFrontAtU : 1.0);
+    }
+    if (!brain._tunnelHitDone && u >= hitU57) {
       brain._tunnelHitDone = true;
       // her lane by her (tweened) position, so a lane change that is under way counts
       var offs = c.laneOffsets || [-0.55, 0.55];
@@ -2131,6 +2136,28 @@
     ctx.globalAlpha = ga;
   }
 
+  // sega57: boss EMERGE throb - strong pulsing scale (+/- bossEmergeThrobAmp at bossEmergeThrobHz, default 2x the 129 BPM beat)
+  // from the dome crack through burst and rise, then eases back into the normal throb over bossEmergeThrobEaseSec.
+  function emergeThrob57(state) {
+    var c = state.config || {};
+    if (c.bossEmergeThrobOn === false) return 1;
+    var amp = c.bossEmergeThrobAmp != null ? +c.bossEmergeThrobAmp : 0.12;
+    if (!(amp > 0)) return 1;
+    var t = state.songClock != null ? state.songClock : 0;
+    var dly = +(c.bossEmergeDelaySec || 0);
+    var cs = (c.bossDomeCrackStartSec != null ? c.bossDomeCrackStartSec : 185.22) + dly;
+    var burst = cs + Math.max(0.1, c.bossDomeCrackDurSec != null ? c.bossDomeCrackDurSec : 1.6);
+    var rs = (c.bossRiseFromDomeSec != null ? c.bossRiseFromDomeSec + dly : burst + 0.15);
+    var re = rs + Math.max(0.2, c.bossRiseDurSec != null ? c.bossRiseDurSec : 2.5);
+    var ease = Math.max(0.05, c.bossEmergeThrobEaseSec != null ? +c.bossEmergeThrobEaseSec : 1.0);
+    if (t < cs || t > re + ease) return 1;
+    var env = Math.min(1, (t - cs) / 0.3);
+    if (t > re) { var u = (t - re) / ease; env *= 1 - u * u * (3 - 2 * u); }
+    var hz = c.bossEmergeThrobHz != null ? +c.bossEmergeThrobHz : 129 / 60 * 2;
+    var ph = Math.sin((t - burst) * hz * 2 * Math.PI);
+    return 1 + amp * env * (ph >= 0 ? Math.pow(ph, 0.6) : -Math.pow(-ph, 0.6)); // punchy (squared-off) pulse
+  }
+
   function drawBrain(ctx, state, brain) {
     var x = brain.x;
     var y = brain.y;
@@ -2147,6 +2174,7 @@
     var i;
     var a;
     var throbScale = (brain.drawScale != null) ? brain.drawScale : (1 + 0.12 * Math.sin(brain.throb || 0));
+    if (brain.isBoss && !brain.bossDying) throbScale *= emergeThrob57(state); // sega57: strong throb while the dome explodes
     // sega56 (fix): final death / game over (doom, deadline defeat, finale lost). At the first such frame the boss's
     // EFFECTIVE on-screen size (all multipliers: approach/phase scale, throb, beat squash) is captured; from then on it is
     // drawn at exactly cap x (1 -> bossGameOverScale, smoothstep over bossGameOverScaleSec) and held - no other factor applies.
@@ -2406,6 +2434,7 @@
     }
     for (n = 0; n < state.brains.length; n++) {
       if (state.brains[n].alive || state.brains[n].bossDying || state.brains[n].exitShrink) {
+        if (tunnelBrainInFront57(state, state.brains[n])) continue; // sega57: drawn after her (renderFront)
         drawBrain(ctx, state, state.brains[n]);
       }
     }
@@ -2416,6 +2445,21 @@
     }
     if (state.shots) {
       drawShots(ctx, state);
+    }
+  }
+
+  // sega57: tunnel lane brains depth-sorted against the player sprite. laneU is the brain's depth along its
+  // horizon -> her path (scale 0.05 + 0.95 u^2; u = 1 = at her). Nearer than her (u >= tunnelBrainFrontAtU) -> in front.
+  function tunnelBrainInFront57(state, b) {
+    var c = state.config || {};
+    if (c.tunnelBrainDepthSortOn === false || !b || !b.tunnelLane || !b.alive) return false;
+    var fu = c.tunnelBrainFrontAtU != null ? +c.tunnelBrainFrontAtU : 1.0;
+    return (b.laneU || 0) >= fu;
+  }
+  function renderFront(state) {
+    if (!state.brains || !state.ctx) return;
+    for (var n = 0; n < state.brains.length; n++) {
+      if (tunnelBrainInFront57(state, state.brains[n])) drawBrain(state.ctx, state, state.brains[n]);
     }
   }
 
@@ -2453,6 +2497,7 @@
     reset: resetBrains,
     update: updateBrains,
     render: render,
+    renderFront: renderFront, // sega57
     tryTapShoot: tryTapShoot,
     fireShotAt: fireShotAt,
     spawnBrain: spawnBrain,
