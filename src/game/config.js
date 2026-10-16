@@ -730,6 +730,9 @@
     photoNightSynthFullresMaskKey: "clean", // sega56: skyline mask used when the night plate is a *-fullres* file (same Seeger framing as dusk-clean/violet)
     photoNightSynthFullresNearFrac: 0.83,   // sega56: layered-BG near line for the full-res night plate (dusk-clean value)
     photoDuskCleanSmoothPath: "images/bg-austin-new/fast/background-photo-dusk-avg-smooth.jpg", // sega55: palette = avg(night-synth, violet); old: background-photo-dusk-clean-smooth.jpg
+    photoNoGhostPlatesOn: true, // sega58: use the sky-repainted plates (no baked pale blocky ghost skyline); false = originals
+    photoNoGhostMap: {"images/bg-austin-new/fast/background-photo-dusk-avg-smooth.jpg": "images/bg-austin-new/fast/background-photo-dusk-avg-noghost58-smooth.jpg", "images/bg-austin-new/fast/background-photo-dusk-clean-smooth.jpg": "images/bg-austin-new/fast/background-photo-dusk-clean-noghost58-smooth.jpg", "images/bg-austin-new/fast/background-photo-violet-smooth.jpg": "images/bg-austin-new/fast/background-photo-violet-noghost58-smooth.jpg", "images/bg-austin-new/fast/background-photo-postnuke-dusk-smooth.jpg": "images/bg-austin-new/fast/background-photo-postnuke-dusk-noghost58-smooth.jpg", "images/bg-austin-new/fast/background-photo-postnuke-acid-smooth.jpg": "images/bg-austin-new/fast/background-photo-postnuke-acid-noghost58-smooth.jpg"}, // sega58: original plate -> no-ghost copy
+    bgSkyGradientOn: true, // sega58: layered SKY layer fills behind the skyline with a smooth gradient sampled from the plate's clean sky (false = old 64-px bars)
     photoVioletSmoothPath: "images/bg-austin-new/fast/background-photo-violet-smooth.jpg",
     photoGreenbeltSmoothPath: "images/bg-austin-new/fast/background-photo-greenbelt-night-smooth.jpg",
     photoPostnukeDuskSmoothPath: "images/bg-austin-new/fast/background-photo-postnuke-dusk-smooth.jpg",

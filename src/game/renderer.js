@@ -1237,6 +1237,38 @@
     var cd = ld("cloud", c.night07CloudPath || "images/bg-austin-new/fast/night07-clouds-56.png");
     return (sk && cd) ? { sky: sk, cloud: cd } : null;
   }
+  // sega58: bgSkyGradientOn - the SKY layer's building region is filled with a smooth vertical gradient sampled from the
+  // plate's own clean sky (per row: mean of the pixels above the skyline mask in that row; rows below the lowest sampled sky
+  // hold the last colour; then smoothed). Replaces the old column-stretch blurred into 64-px bars that peeked out at mask edges.
+  function skyGradient58(img, tops, W, H) {
+    try {
+      var sw = Math.max(32, W >> 2), cv = L55canvas(sw, H), cx = cv.getContext("2d");
+      cx.drawImage(img, 0, 0, sw, H);
+      var d = cx.getImageData(0, 0, sw, H).data, n = tops.length, col = new Float32Array(H * 3), have = new Uint8Array(H), y, x, cnt, r, g, b, ti;
+      for (y = 0; y < H; y++) {
+        cnt = 0; r = g = b = 0;
+        for (x = 0; x < sw; x++) {
+          ti = Math.min(n - 1, Math.floor(x * n / sw));
+          if (y < tops[ti] * H - 6) { var p = (y * sw + x) * 4; r += d[p]; g += d[p + 1]; b += d[p + 2]; cnt++; }
+        }
+        if (cnt >= 4) { col[y * 3] = r / cnt; col[y * 3 + 1] = g / cnt; col[y * 3 + 2] = b / cnt; have[y] = 1; }
+      }
+      var last = -1;
+      for (y = 0; y < H; y++) {
+        if (have[y]) { last = y; continue; }
+        if (last >= 0) { col[y * 3] = col[last * 3]; col[y * 3 + 1] = col[last * 3 + 1]; col[y * 3 + 2] = col[last * 3 + 2]; }
+      }
+      if (last < 0) return null;
+      var out = L55canvas(1, H), ox = out.getContext("2d"), od = ox.createImageData(1, H), R = 6, k, s3, w;
+      for (y = 0; y < H; y++) {
+        var acc = [0, 0, 0]; w = 0;
+        for (k = -R; k <= R; k++) { s3 = Math.max(0, Math.min(Math.max(last, 0), y + k)); acc[0] += col[s3 * 3]; acc[1] += col[s3 * 3 + 1]; acc[2] += col[s3 * 3 + 2]; w++; }
+        od.data[y * 4] = acc[0] / w; od.data[y * 4 + 1] = acc[1] / w; od.data[y * 4 + 2] = acc[2] / w; od.data[y * 4 + 3] = 255;
+      }
+      ox.putImageData(od, 0, 0);
+      return out;
+    } catch (eG) { return null; }
+  }
   function L55build(state, key, img) {
     var c = state.config || {};
     var W = img.width, H = img.height;
@@ -1254,7 +1286,8 @@
     var sky = L55canvas(W, H), sx = sky.getContext("2d");
     var CL56 = night07Clouds56(state, key); // sega56
     sx.drawImage(img, 0, 0);
-    for (i = 0; i < n; i++) {
+    var grad58 = c.bgSkyGradientOn !== false ? skyGradient58(img, tops, W, H) : null; // sega58: smooth clean-sky gradient fill
+    for (i = 0; i < n && !grad58; i++) {
       x0 = Math.floor(i * W / n); x1 = Math.ceil((i + 1) * W / n);
       ty = Math.max(3, Math.floor(tops[i] * H) - 5);
       sx.drawImage(img, x0, ty - 3, x1 - x0, 3, x0, ty - 3, x1 - x0, H - ty + 3);
@@ -1264,7 +1297,9 @@
     sx.save(); sx.beginPath(); sx.moveTo(0, H);
     for (i = 0; i < n; i++) { sx.lineTo(i * W / n, Math.max(0, tops[i] * H - 8)); sx.lineTo((i + 1) * W / n, Math.max(0, tops[i] * H - 8)); }
     sx.lineTo(W, H); sx.closePath(); sx.clip(); sx.imageSmoothingEnabled = true;
-    sx.drawImage(bl, 0, 0, bl.width, bl.height, 0, 0, W, H); sx.restore();
+    if (grad58) sx.drawImage(grad58, 0, 0, 1, grad58.height, 0, 0, W, H);
+    else sx.drawImage(bl, 0, 0, bl.width, bl.height, 0, 0, W, H);
+    sx.restore();
     if (CL56) { sx.save(); sx.globalCompositeOperation = "source-over"; sx.imageSmoothingEnabled = true; sx.drawImage(CL56.sky, 0, 0, W, H); sx.restore(); } // sega56: clean gradient, clouds are their own layer
     // FAR: silhouette polygon (skyline tops .. near line)
     var far = L55canvas(W, H), fx = far.getContext("2d");

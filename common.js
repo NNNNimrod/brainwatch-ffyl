@@ -100,7 +100,7 @@ if (!window.requestAnimationFrame) { // http://paulirish.com/2011/requestanimati
 //  - never blocks the game; drawImage never throws on unloaded/broken art
 //=========================================================================
 
-var ASSET_V = "sega57";
+var ASSET_V = "sega58";
 
 (function sega44DrawImageGuard() {
   try {

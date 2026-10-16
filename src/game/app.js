@@ -68,7 +68,12 @@
     var photoOn = bootCfg.photoPlatesOn !== false;
     // sega55: photoPlatesSmooth -> untouched full-res photo plates (*-smooth.jpg); greenbeltPlateMode classic | photo | photo-smooth
     var smOn = photoOn && bootCfg.photoPlatesSmooth !== false;
-    function pp(px, sm) { return (smOn && bootCfg[sm]) ? bootCfg[sm] : bootCfg[px]; }
+    function pp(px, sm) {
+      var p0 = (smOn && bootCfg[sm]) ? bootCfg[sm] : bootCfg[px];
+      // sega58: photoNoGhostPlatesOn -> sky-repainted copies without the baked pale blocky ghost skyline (photoNoGhostMap)
+      var ng = bootCfg.photoNoGhostPlatesOn !== false && bootCfg.photoNoGhostMap;
+      return (ng && p0 && ng[p0]) ? ng[p0] : p0;
+    }
     var gbMode = bootCfg.greenbeltPlateMode || "classic";
     var PHOTO_PATHS = photoOn ? { "night-synth": pp("photoNightSynthPath", "photoNightSynthSmoothPath"), "dusk-clean": pp("photoDuskCleanPath", "photoDuskCleanSmoothPath"),
       "violet": pp("photoVioletPath", "photoVioletSmoothPath"), "dusk": pp("photoPostnukeDuskPath", "photoPostnukeDuskSmoothPath"),
