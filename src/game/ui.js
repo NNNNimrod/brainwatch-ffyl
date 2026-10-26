@@ -672,6 +672,30 @@
         e.preventDefault();
       }
     }, { passive: false });
+    initIntroWindow59(state);
+  }
+
+  // sega59: introWindowLockOn - the start/intro window (#phaseOverlay + #overlayCard) cannot move: html.intro-lock CSS (overflow
+  // hidden, touch-action none, overscroll-behavior none, no sticky buttons) + touchmove / wheel / gesture (pinch) prevented on it
+  // (the initials input keeps its own touches). introWindowFitOn - html.intro-fit CSS sizes every item of the title card from the
+  // overlay's own box (container query units, clamp) so it all fits; introTextScale scales the card text (CSS --intro-text-scale).
+  function initIntroWindow59(state) {
+    var c = state.config || {}, root = document.documentElement, ov = document.getElementById("phaseOverlay");
+    root.classList.toggle("intro-lock", c.introWindowLockOn !== false);
+    root.classList.toggle("intro-fit", c.introWindowFitOn !== false);
+    root.style.setProperty("--intro-text-scale", String(c.introTextScale != null ? +c.introTextScale : 1));
+    if (c.introWindowLockOn === false || !ov) return;
+    var stop = function(e) {
+      var t = e.target;
+      if (t && t.closest && t.closest("input, textarea, select, .initials-entry")) return;
+      if (e.cancelable) e.preventDefault();
+    };
+    ov.addEventListener("touchmove", stop, { passive: false });
+    ov.addEventListener("wheel", stop, { passive: false });
+    ["gesturestart", "gesturechange"].forEach(function(n) { ov.addEventListener(n, stop, { passive: false }); });
+    ov.addEventListener("scroll", function() { if (ov.scrollTop || ov.scrollLeft) { ov.scrollTop = 0; ov.scrollLeft = 0; } });
+    var card = document.getElementById("overlayCard");
+    if (card) card.addEventListener("scroll", function() { if (card.classList.contains("menu-title") && card.scrollTop) card.scrollTop = 0; });
   }
 
   function lyricPair(t) {
@@ -850,6 +874,13 @@
     }
 
     pair = lyricPair(t);
+    // sega59: the intro how-to lines are shown centred on the canvas during the intro fade -> no duplicate top banner
+    var cI = state.config || {};
+    if (pair.howto && cI.introInstructionsOn !== false && cI.introInstructionsHideBanner !== false && state.phase === "running" &&
+        t < (cI.introFadeEndSec != null ? +cI.introFadeEndSec : 8)) {
+      el.className = "instruction-banner hidden"; el.textContent = ""; el.style.opacity = "";
+      return;
+    }
     if (pair.howto && pair.current) {
       var cfgH = state.config || {};
       var lines = ns.LYRICS || [];

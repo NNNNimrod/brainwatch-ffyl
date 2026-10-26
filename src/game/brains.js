@@ -79,6 +79,9 @@
     brain.bossDeathExplodeAcc = 0;
     brain.bossDeathPhase = "expand";
     brain.defeatExpand = 1;
+    if ((state.config || {}).bossDeathDecayOn !== false) { // sega59: staged breakdown first, then the final big explosion
+      brain.bossDeathPhase = "decay"; brain.decayT59 = 0; brain.decayDS59 = brain.drawScale || 1; brain.decayPop59 = 0; brain.decayFlk59 = 0; brain.decayCols59 = null;
+    }
     state.brainKills = (state.brainKills || 0) + 1;
     state.score += 50;
     state.eventText = "BOSS DOWN +50";
@@ -95,6 +98,43 @@
     brain.bossDeathElapsed = (brain.bossDeathElapsed || 0) + dt;
     brain.bobPhase = (brain.bobPhase || 0) + dt * 2.4;
     brain.y = brain.baseY + Math.sin(brain.bobPhase) * (brain.bobAmp || 0);
+    // sega59: BOSS DEATH DECAY - over bossDeathDecaySec: spreading cracks + dissolve (drawBrain), sprite-coloured chunks flaking off,
+    // flicker and small pops building up (t_k = sec * sqrt(k / pops)), then one big explosion ring and done.
+    if (brain.bossDeathPhase === "decay") {
+      var dSec = Math.max(0.3, c.bossDeathDecaySec != null ? +c.bossDeathDecaySec : 2.6);
+      brain.decayT59 += dt;
+      var du = Math.min(1, brain.decayT59 / dSec);
+      brain.drawScale = brain.decayDS59 * (1 + 0.03 * Math.sin(brain.decayT59 * 37) * du);
+      var szD = brain.radius * 2.6 * brain.drawScale;
+      brain.screenRect = { x: brain.x - szD / 2, y: brain.y - szD / 2, w: szD, h: szD };
+      if (ns.Fx && ns.Fx.spawnRectFlakes59) {
+        if (!brain.decayCols59 && ns.Fx.sampleRectCols59) brain.decayCols59 = ns.Fx.sampleRectCols59(state, brain.screenRect);
+        var nCh = Math.max(0, Math.round(c.bossDeathDecayChunks != null ? +c.bossDeathDecayChunks : 160));
+        var want = Math.floor(nCh * Math.pow(du, 1.4));
+        if (want > brain.decayFlk59) {
+          var rr = { x: brain.x - szD * 0.4, y: brain.y - szD * 0.38, w: szD * 0.8, h: szD * 0.7 };
+          ns.Fx.spawnRectFlakes59(state, rr, want - brain.decayFlk59, 0.55 + du * 0.6, brain.decayCols59 || ["#ff9ee0", "#c04a90", "#6a1060"], 0.9);
+          brain.decayFlk59 = want;
+        }
+      }
+      var nPop = Math.max(0, Math.round(c.bossDeathDecayPops != null ? +c.bossDeathDecayPops : 24));
+      while (brain.decayPop59 < nPop && brain.decayT59 >= dSec * Math.sqrt((brain.decayPop59 + 1) / (nPop + 1))) {
+        brain.decayPop59++;
+        var aP = Math.random() * Math.PI * 2, rP = szD * 0.42 * Math.sqrt(Math.random());
+        if (ns.Fx && ns.Fx.spawnExplosion) ns.Fx.spawnExplosion(state, brain.x + Math.cos(aP) * rP, brain.y + Math.sin(aP) * rP * 0.8, "sega", 0.15 + 0.45 * (brain.decayPop59 / Math.max(1, nPop)));
+      }
+      if (du >= 1) {
+        var bigM = (c.bossDeathExplosionSizeMult != null) ? c.bossDeathExplosionSizeMult : 1, q;
+        if (ns.Fx && ns.Fx.spawnExplosion) {
+          ns.Fx.spawnExplosion(state, brain.x, brain.y, "sega", 3.0 * bigM);
+          for (q = 0; q < 8; q++) ns.Fx.spawnExplosion(state, brain.x + Math.cos(q * 0.785) * szD * 0.35, brain.y + Math.sin(q * 0.785) * szD * 0.3, "sega", 1.4 * bigM);
+        }
+        state.explosionFlash = Math.max(state.explosionFlash || 0, 1);
+        brain.bossDeathPhase = "done";
+        return false;
+      }
+      return true;
+    }
 
     // sega31d: throb expand:shrink 3:1 until 1000% while spraying Sega explosions
     if (throbOn && (brain.bossDeathPhase === "expand" || brain.bossDeathPhase === "throb")) {
@@ -2158,6 +2198,47 @@
     return 1 + amp * env * (ph >= 0 ? Math.pow(ph, 0.6) : -Math.pow(-ph, 0.6)); // punchy (squared-off) pulse
   }
 
+  // sega59: decaying boss sprite - offscreen copy, blocky dissolve eating in from the rim + along the cracks, glowing cracks spreading
+  // from 5 seeds, flicker in the second half. (The veins are drawn into the copy so the holes see through to the scene.)
+  var dc59 = null;
+  function drawDecay59(ctx, state, brain, sprites, sprite, vein, dw, dh) {
+    var c = state.config || {}, dSec = Math.max(0.3, c.bossDeathDecaySec != null ? +c.bossDeathDecaySec : 2.6);
+    var u = Math.min(1, (brain.decayT59 || 0) / dSec);
+    var S = Math.max(16, Math.min(512, Math.ceil(Math.max(dw, dh))));
+    if (!dc59) dc59 = document.createElement("canvas");
+    if (dc59.width !== S) { dc59.width = S; dc59.height = S; }
+    var g = dc59.getContext("2d");
+    g.globalCompositeOperation = "source-over"; g.clearRect(0, 0, S, S); g.imageSmoothingEnabled = false;
+    if (vein) g.drawImage(vein, 0, 0, sprite.w, sprite.h, 0, 0, S, S);
+    g.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, 0, 0, S, S);
+    // cracks
+    var seeds = 5, k, j, L = S * 0.55 * Math.min(1, u * 1.6);
+    g.globalCompositeOperation = "source-atop";
+    for (k = 0; k < seeds; k++) {
+      var a0 = k * 1.2566 + 0.4, x = S / 2 + Math.cos(a0) * S * 0.08, y = S / 2 + Math.sin(a0) * S * 0.08, h = k * 977 + 13;
+      g.beginPath(); g.moveTo(x, y);
+      for (j = 0; j < 7; j++) {
+        h = (h * 16807 + 7) % 2147483647; var ja = a0 + ((h / 2147483647) - 0.5) * 1.1;
+        x += Math.cos(ja) * L / 7; y += Math.sin(ja) * L / 7; g.lineTo(x, y);
+      }
+      g.lineWidth = Math.max(2, S / 70); g.strokeStyle = "#2a0010"; g.stroke();
+      g.lineWidth = Math.max(1, S / 200); g.strokeStyle = "rgba(255,210,240," + (0.5 + 0.5 * Math.sin(state.elapsed * 30 + k)) + ")"; g.stroke();
+    }
+    // dissolve: blocky cells eaten away, rim first
+    g.globalCompositeOperation = "destination-out"; g.fillStyle = "#000";
+    var cell = Math.max(3, Math.round(S / 40)), n = Math.ceil(S / cell), cx, cy;
+    var thr = Math.pow(u, 1.15) * 1.05;
+    for (cy = 0; cy < n; cy++) for (cx = 0; cx < n; cx++) {
+      var hh = Math.sin(cx * 12.9898 + cy * 78.233) * 43758.5453; hh -= Math.floor(hh);
+      var dx = (cx + 0.5) / n - 0.5, dy = (cy + 0.5) / n - 0.5, rim = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 2);
+      if (hh * 0.55 + (1 - rim) * 0.45 < thr) g.fillRect(cx * cell, cy * cell, cell, cell);
+    }
+    g.globalCompositeOperation = "source-over";
+    var ga = ctx.globalAlpha;
+    if (u > 0.45 && Math.random() < 0.25 + u * 0.3) ctx.globalAlpha = ga * (0.35 + Math.random() * 0.5);   // flicker
+    ctx.drawImage(dc59, 0, 0, S, S, -dw / 2, -dh / 2, dw, dh);
+    ctx.globalAlpha = ga;
+  }
   function drawBrain(ctx, state, brain) {
     var x = brain.x;
     var y = brain.y;
@@ -2207,6 +2288,14 @@
       ? "rgba(255, 80, 120, 0.28)"
       : "rgba(180, 40, 255, 0.16)");
     ctx.fill();
+    // sega59: tunnel lane brains glow in the chosen tunnel colour (pink / blue)
+    if (brain.tunnelLane && state._tunnelSide59 && (state.config || {}).tunnelSideTintOn !== false) {
+      var cT59 = state.config || {};
+      ctx.globalAlpha = fadeA * 0.35 * Math.min(1, (cT59.tunnelTintStrength != null ? +cT59.tunnelTintStrength : 0.6) / 0.6);
+      ctx.fillStyle = state._tunnelSide59 === "pink" ? (cT59.tunnelPinkTint || "#ff3fb4") : (cT59.tunnelBlueTint || "#3fa8ff");
+      ctx.beginPath(); ctx.arc(x, y, r * 1.45 * throbScale, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = fadeA;
+    }
 
     // sega54: angry boss throb on the beat (129 BPM): sharp pulse, squash/stretch, red flush — from the dome reveal on
     var thX = 1, thY = 1, thRed = 0, cT = state.config || {};
@@ -2240,8 +2329,9 @@
       }
       if (fadeA < 1) ctx.globalAlpha = fadeA * (flash > 0 ? 0.55 + flash * 0.45 : 1);
       var vein56 = brainVeins56(state, sprite); // sega56: opaque dark-purple veins under the see-through fold gaps
-      if (vein56) ctx.drawImage(vein56, 0, 0, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
-      ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
+      if (vein56 && !(brain.isBoss && brain.bossDeathPhase === "decay")) ctx.drawImage(vein56, 0, 0, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
+      if (brain.isBoss && brain.bossDeathPhase === "decay") drawDecay59(ctx, state, brain, sprites, sprite, vein56, dw, dh);
+      else ctx.drawImage(sprites, sprite.x, sprite.y, sprite.w, sprite.h, -dw / 2, -dh / 2, dw, dh);
       if (thRed > 0.02) { // sega54: red flush on the beat (same red tell filter, faded by the pulse)
         ctx.filter = "sepia(1) saturate(6) hue-rotate(-50deg) brightness(1.2)";
         ctx.globalAlpha = fadeA * Math.min(1, thRed);
@@ -2503,6 +2593,7 @@
     spawnBrain: spawnBrain,
     laneScreenX: laneScreenX,
     spawnFinaleBoss: spawnFinaleBoss,
+    beginBossTrueDeath: beginBossTrueDeath, // sega59 (preview/debug)
     spawnFinaleFightPack: spawnFinaleFightPack,
     spawnFinaleMediums: spawnFinaleMediums,
     spawnTiniesFromMediums: spawnTiniesFromMediums,

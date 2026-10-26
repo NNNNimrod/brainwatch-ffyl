@@ -256,6 +256,56 @@
     introFadeEndSec: 8.0, // sega56: fade reaches full visibility here (VERSE 1 title = verse1 sect
     introFadeCurve: "easeIn", // sega56: fade curve easeIn | linear | smooth | easeOut
     introFadeIncludeUi: false, // sega56: also veil HUD / lyrics / buttons (page overlay, taps still wor
+    introInstructionsOn: true, // sega59: show the how-to lines centred on the canvas during the intro fade (above the black veil)
+    introInstructionsFadeOutSec: 0.8, // sega59: intro instructions fade-out duration (s)
+    introInstructionsGapSec: 0.2, // sega59: instructions are fully gone this long before VERSE 1 (introFadeEndSec)
+    introInstructionsScale: 1.0, // sega59: intro instructions text size x (16 canvas px Press Start 2P)
+    introInstructionsYFrac: 0.42, // sega59: panel centre height (fraction of the game canvas)
+    introInstructionsStagger: false, // sega59: true = each line appears at its own lyric time; false = all lines from 0 s
+    introInstructionsHideBanner: true, // sega59: hide the duplicate top how-to banner while the intro instructions show
+    introWindowLockOn: true, // sega59: start/intro window cannot move: no drag / scroll / rubber-band / pinch (touch-action none, overscroll none, overflow hidden, touchmove blocked)
+    introWindowFitOn: true, // sega59: all start-window content sized to fit the window (container units + clamp, wrapping)
+    introTextScale: 1.0, // sega59: start-window text size x (on top of the fit sizing)
+    carHitFlakeOn: true, // sega59: car hit: the car stays and sheds sprite-coloured pixel flakes
+    carHitFlakeCount: 40, // sega59: car hit flake count
+    carHitFlakeSec: 0.5, // sega59: car hit flake life (s)
+    carHitFlakeSpeed: 1.0, // sega59: car hit flake spread speed x
+    carHitPlayerExplosionOn: true, // sega59: car hit: brain-kill sega explosion at HER position
+    carHitPlayerExplosionScale: 0.7, // sega59: car hit player explosion size x (brain-kill = 1)
+    collapseLightningOn: true, // sega59: jagged pixel lightning strikes the post-nuke collapsing towers (flash + impact spark)
+    collapseLightningCount: 8, // sega59: number of lightning strikes over the collapse
+    collapseLightningFlash: 0.35, // sega59: sky flash strength per strike (0 = none)
+    collapseLightningBeatSync: true, // sega59: snap each strike to the next beat
+    collapseLightningBpm: 129, // sega59: beat-sync tempo (BPM)
+    tunnelSideTintOn: true, // sega59: tunnel mouth split pink (left) / blue (right); interior tinted by her lane at entry
+    tunnelPinkTint: "#ff3fb4", // sega59: pink tunnel tint
+    tunnelBlueTint: "#3fa8ff", // sega59: blue tunnel tint
+    tunnelTintStrength: 0.6, // sega59: tunnel tint strength 0..1 (walls, glow, rings, tiny-brain glow)
+    bossDeathDecayOn: true, // sega59: boss death = staged decay (cracks, dissolve, flaking chunks, pops) then a big explosion
+    bossDeathDecaySec: 2.6, // sega59: boss decay duration (s)
+    bossDeathDecayChunks: 160, // sega59: boss decay: sprite-coloured chunks flaking off
+    bossDeathDecayPops: 24, // sega59: boss decay: small pops building up
+    capitolFadeInSec: 4, // sega59: fade into the Capitol boss plate (s; old 0 = hard cut), ends at bossBgCapitolStartSec 184
+    greenbeltFadeInSec: 9, // sega59: fade into the Greenbelt (s; old greenbeltFadeSec 5), still full at 64 s
+    atmosphereAscentOn: true, // sega59: earth atmosphere band above the sinking city on the win ascent (haze + glowing curved limb, space above)
+    atmosphereColorLow: "#1b3fb8", // sega59: atmosphere bottom colour fallback (used when atmosphereSampleCapitolTop is false / no sample)
+    atmosphereSampleCapitolTop: true, // sega59: atmosphere bottom colour = the city plate's top-row sky as drawn just before the drop (false = atmosphereColorLow)
+    atmosphereColorMid: "#5a96e6", // sega59: atmosphere haze middle colour
+    atmosphereColorHigh: "#d6f4ff", // sega59: atmosphere haze colour at the limb (top)
+    atmosphereHeightFrac: 0.22, // sega59: atmosphere band height (x screen h)
+    atmosphereParallax: 0.85, // sega59: atmosphere descent speed vs the city drop (<1 = slower)
+    atmosphereLimbGlow: 1.0, // sega59: limb line glow strength (0 = no limb line)
+    ascentStarAccelOn: true, // sega59: ascent: stars scroll down + accelerate with streaks, ease to a slow drift once she has left
+    ascentStarAccel: 0.5, // sega59: star scroll acceleration (screen h / s^2)
+    ascentStarMaxSpeed: 2.2, // sega59: max star scroll speed (screen h / s)
+    ascentStarEaseSec: 2.5, // sega59: ease to the drift speed after she leaves the screen (s)
+    ascentStarDriftSpeed: 0.03, // sega59: final steady star drift (screen h / s)
+    ascentStarStreak: 0.035, // sega59: star streak length = speed x this (s)
+    playerLeanSmoothOn: true, // sega59: eased lean (frame blend + small roll) and eased lateral lane move; straight = upright
+    playerLeanEaseSec: 0.09, // sega59: time to lean fully into a lane switch (s)
+    playerReturnUprightSec: 0.25, // sega59: time to ease back upright after the switch (s)
+    playerLaneMoveEase: 1.0, // sega59: lane move curve 0 = old linear .. 1 = smoothstep (same duration)
+    playerLeanTiltDeg: 3, // sega59: lane-switch roll at full lean (deg)
     bgLayersOn: true, // sega55 LAYERED BG master: cut smooth photo plates at runtime into sky 
     bgLayersKeys: ["night-synth", "dusk-clean", "violet", "greenbelt", "austin-free", "austin-free-synth", "dusk", "acid"], // sega55: plate keys drawn layered (Capitol stays flat)
     bgLayerNearFracByKey: {"night-synth": 0.8, "dusk-clean": 0.83, "violet": 0.83, "greenbelt": 0.8, "austin-free": 0.9, "austin-free-synth": 0.9, "dusk": 0.83, "acid": 0.83}, // sega55: near/foreground line per plate (fraction of plate height)

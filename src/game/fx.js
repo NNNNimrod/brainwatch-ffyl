@@ -130,11 +130,89 @@
     }
   }
 
+  // sega59: CAR HIT FLAKE - the hit car stays; it sheds a burst of square pixel flakes (bossDomeDebris style) coloured from
+  // its own on-screen sprite pixels (sampled from the last frame inside car.screenRect), gravity + 90-degree tumbling, ~0.5 s.
+  function spawnCarFlakes59(state, car) {
+    var c = state.config || {};
+    if (c.carHitFlakeOn === false || !state.ctx) return;
+    var W = state.width, H = state.height;
+    var r = (car && car.screenRect && car.screenRect.w > 4) ? car.screenRect
+      : { x: W / 2 + (car && car.offset ? car.offset * W * 0.22 : 0) - 50, y: H * 0.72 - 60, w: 100, h: 60 };
+    var cols = [];
+    try {
+      var cv = state.ctx.canvas, kx = cv.width / Math.max(1, W), ky = cv.height / Math.max(1, H);
+      var sx = Math.max(0, Math.floor((r.x + r.w * 0.15) * kx)), sy = Math.max(0, Math.floor((r.y + r.h * 0.15) * ky));
+      var sw = Math.max(1, Math.min(cv.width - sx, Math.floor(r.w * 0.7 * kx))), sh = Math.max(1, Math.min(cv.height - sy, Math.floor(r.h * 0.7 * ky)));
+      var d = state.ctx.getImageData(sx, sy, sw, sh).data, i, n = d.length / 4, step = Math.max(1, Math.floor(n / 400));
+      for (i = 0; i < n; i += step) {
+        var R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2];
+        if (R + G + B > 75) cols.push("rgb(" + R + "," + G + "," + B + ")");
+      }
+    } catch (eS) {}
+    if (!cols.length) cols = ["#c0c0c0", "#8a8a8a", "#5a5a5a"];
+    var N = Math.max(0, Math.round(c.carHitFlakeCount != null ? +c.carHitFlakeCount : 40));
+    var spd = c.carHitFlakeSpeed != null ? +c.carHitFlakeSpeed : 1.0;
+    spawnRectFlakes59(state, r, N, spd, cols, c.carHitFlakeSec != null ? +c.carHitFlakeSec : 0.5);
+  }
+  // sega59: shared square-pixel flake burst (car hit + boss decay); cols = sampled sprite colours
+  function sampleRectCols59(state, r) {
+    var cols = [], W = state.width, H = state.height;
+    try {
+      var cv = state.ctx.canvas, kx = cv.width / Math.max(1, W), ky = cv.height / Math.max(1, H);
+      var sx = Math.max(0, Math.floor((r.x + r.w * 0.15) * kx)), sy = Math.max(0, Math.floor((r.y + r.h * 0.15) * ky));
+      var sw = Math.max(1, Math.min(cv.width - sx, Math.floor(r.w * 0.7 * kx))), sh = Math.max(1, Math.min(cv.height - sy, Math.floor(r.h * 0.7 * ky)));
+      var d = state.ctx.getImageData(sx, sy, sw, sh).data, i, n = d.length / 4, step = Math.max(1, Math.floor(n / 400));
+      for (i = 0; i < n; i += step) { var R = d[i * 4], G = d[i * 4 + 1], B = d[i * 4 + 2]; if (R + G + B > 75) cols.push("rgb(" + R + "," + G + "," + B + ")"); }
+    } catch (eS) {}
+    return cols.length ? cols : ["#c0c0c0", "#8a8a8a", "#5a5a5a"];
+  }
+  function spawnRectFlakes59(state, r, N, spd, cols, life) {
+    var W = state.width;
+    var cell = Math.max(2, Math.round(W / 160)), list = state._carFlakes59 || (state._carFlakes59 = []), k;
+    for (k = 0; k < N; k++) {
+      var ang = -Math.PI / 2 + (Math.random() * 2 - 1) * 1.5, v = (160 + Math.random() * 320) * spd * (W / 640);
+      list.push({ x: r.x + r.w * (0.15 + Math.random() * 0.7), y: r.y + r.h * (0.2 + Math.random() * 0.6),
+        vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, t0: state.elapsed || 0, sz: cell * (Math.random() < 0.3 ? 2 : 1),
+        col: cols[Math.floor(Math.random() * cols.length)], spin: 3 + Math.random() * 9, sh: Math.floor(Math.random() * 3), life: life });
+    }
+    if (list.length > 400) list.splice(0, list.length - 400);
+  }
+  var FLK59 = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [1, 0], [0, 1]]];
+  function renderCarFlakes59(state) {
+    var list = state._carFlakes59;
+    if (!list || !list.length) return;
+    var c = state.config || {}, ctx = state.ctx, now = state.elapsed || 0;
+    var dur0 = Math.max(0.1, c.carHitFlakeSec != null ? +c.carHitFlakeSec : 0.5), G = 900 * (state.width / 640), i, j;
+    ctx.save();
+    for (i = list.length - 1; i >= 0; i--) {
+      var f = list[i], t = now - f.t0, dur = f.life || dur0;
+      if (t < 0 || t > dur) { list.splice(i, 1); continue; }
+      var x = f.x + f.vx * t, y = f.y + f.vy * t + 0.5 * G * t * t, rot = Math.floor(t * f.spin) % 4, sh = FLK59[f.sh];
+      ctx.globalAlpha = Math.min(1, (dur - t) / (dur * 0.35));
+      for (j = 0; j < sh.length; j++) {
+        var ux = sh[j][0], uy = sh[j][1], q, tx;
+        for (q = 0; q < rot; q++) { tx = ux; ux = -uy; uy = tx; }
+        var X = Math.round(x / f.sz) * f.sz + ux * f.sz, Y = Math.round(y / f.sz) * f.sz + uy * f.sz;
+        ctx.fillStyle = "#1a1a1a"; ctx.fillRect(X + f.sz * 0.5, Y + f.sz * 0.5, f.sz, f.sz);   // dark edge
+        ctx.fillStyle = f.col; ctx.fillRect(X, Y, f.sz, f.sz);
+      }
+    }
+    ctx.restore();
+  }
+
   function spawnCollisionExplosion(state, car) {
     var width = state.width;
     var height = state.height;
     var x = width / 2 + (car && car.offset ? car.offset * width * 0.22 : 0);
     var y = height * 0.72;
+    var cfg0 = state.config || {};
+    spawnCarFlakes59(state, car); // sega59
+    var pxMul59 = 1;
+    if (cfg0.carHitPlayerExplosionOn !== false && state._playerDrawDestX != null) { // sega59: explosion at HER (brain-kill sega burst)
+      x = state._playerDrawDestX;
+      y = (state._playerDrawDestY != null ? state._playerDrawDestY : height * 0.78) - (state._playerDrawH || height * 0.14) * 0.45;
+      pxMul59 = cfg0.carHitPlayerExplosionScale != null ? +cfg0.carHitPlayerExplosionScale : 0.7;
+    }
     // player↔car: Sega explosion (+ carCollisionExplosionSizeMult); NEVER pickup/cute
     var cfg = state && state.config ? state.config : {};
     var kind = cfg.enemyCollisionFxKind || cfg.carCollisionFxKind || null;
@@ -147,7 +225,7 @@
     // size applied again inside spawnExplosion via _carCollisionFx — pass 1 here to avoid double
     state._carCollisionFx = true;
     try {
-      spawnExplosion(state, x, y, kind, 1);
+      spawnExplosion(state, x, y, kind, pxMul59);
       // debris shards even if kind is sega/damage
       if (kind !== "car" && cfg.damageDebrisOn === true) { // sega55: damageDebrisOn (default false = no shards on car hits)
         spawnDebrisShards(state, x, y, sizeMul);
@@ -201,6 +279,7 @@
     var p;
     var alpha;
     var sp;
+    renderCarFlakes59(state); // sega59
     if (!state.particles || !state.particles.length) {
       if (state.explosionFlash > 0) {
         ctx.fillStyle = "rgba(255, 140, 40, " + (state.explosionFlash * 0.4).toFixed(3) + ")";
@@ -331,6 +410,7 @@
 
   ns.Fx = {
     spawnExplosion: spawnExplosion,
+    spawnRectFlakes59: spawnRectFlakes59, sampleRectCols59: sampleRectCols59, // sega59
     spawnDebrisShards: spawnDebrisShards,
     spawnCollisionExplosion: spawnCollisionExplosion,
     spawnElectricArc: spawnElectricArc,

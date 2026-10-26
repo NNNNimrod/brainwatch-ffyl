@@ -639,6 +639,22 @@
 
   function snapLane(state, dt) {
     var target = ns.State.laneOffset(state, state.lane);
+    // sega59: playerLaneMoveEase (0 = old linear step .. 1 = smoothstep ease-in-out) - same move duration as the linear step
+    // (|distance| / laneSnapSpeed) so the lane timing / collisions are unchanged; restarts from where she is on a re-target.
+    var eK = state.config.playerLeanSmoothOn !== false && state.config.playerLaneMoveEase != null ? +state.config.playerLaneMoveEase : 0;
+    if (eK > 0 && !state.inTunnel) {
+      var mv = state._laneMv59;
+      if (!mv || mv.to !== target) {
+        if (Math.abs(target - state.playerX) < 1e-4) { state._laneMv59 = null; state.playerX = target; return; }
+        mv = state._laneMv59 = { from: state.playerX, to: target, t: 0, dur: Math.max(0.04, Math.abs(target - state.playerX) / Math.max(0.01, state.config.laneSnapSpeed)) };
+      }
+      mv.t += dt;
+      var u = Math.min(1, mv.t / mv.dur), us = u * u * (3 - 2 * u), f = u + (us - u) * Math.min(1, eK);
+      state.playerX = mv.from + (mv.to - mv.from) * f;
+      if (u >= 1) { state.playerX = target; }
+      return;
+    }
+    state._laneMv59 = null;
     var diff = target - state.playerX;
     var step = state.config.laneSnapSpeed * dt;
     if (Math.abs(diff) <= step) {

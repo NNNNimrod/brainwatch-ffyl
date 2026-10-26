@@ -1440,6 +1440,13 @@
     if (img._smooth54) { ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = "high"; } catch (eSQ) {} }
     ctx.globalAlpha = Math.min(1, mouthA);
     ctx.drawImage(img, 0, 0, iw, srcH, dx, dy, dw, dh);
+    if (c.tunnelSideTintOn !== false) { // sega59: mouth split - LEFT half pink, RIGHT half blue (soft seam)
+      var k59 = (c.tunnelTintStrength != null ? +c.tunnelTintStrength : 0.6) * Math.min(1, mouthA);
+      var g59 = ctx.createLinearGradient(dx, 0, dx + dw, 0), pc = c.tunnelPinkTint || "#ff3fb4", bc = c.tunnelBlueTint || "#3fa8ff";
+      g59.addColorStop(0, pc); g59.addColorStop(0.46, pc); g59.addColorStop(0.54, bc); g59.addColorStop(1, bc);
+      ctx.globalCompositeOperation = "color"; ctx.globalAlpha = Math.min(1, k59); ctx.fillStyle = g59; ctx.fillRect(dx, dy, dw, dh);
+      ctx.globalCompositeOperation = "source-over";
+    }
     ctx.restore();
     // Stash mouth rect for player shrink aim
     state._tunnelMouthRect = { x: dx, y: dy, w: dw, h: dh, cx: dx + dw / 2, cy: dy + dh * 0.55 };
@@ -1556,7 +1563,38 @@
     return true;
   }
 
+  // sega59: TUNNEL CHOICE pink vs blue. Side = her lane the first frame she is inTunnel (t >= tunnelEnterSec): playerX (tweened
+  // lane position, so a lane change under way counts) left of the lane-offset midpoint = LEFT/pink, else RIGHT/blue.
+  function tunnelSide59(state) {
+    var c = cfg(state);
+    if (c.tunnelSideTintOn === false) return null;
+    if (!state.inTunnel) { if (state._tunnelPhase !== "inside") state._tunnelSide59 = null; return null; }
+    if (state._tunnelSide59 == null) {
+      var offs = c.laneOffsets || [-0.55, 0.55], mid = (offs[0] + offs[offs.length - 1]) / 2;
+      state._tunnelSide59 = (state.playerX != null ? state.playerX : 0) < mid ? "pink" : "blue";
+    }
+    return state._tunnelSide59;
+  }
+  function tunnelTintCol59(state, side) {
+    var c = cfg(state);
+    return side === "pink" ? (c.tunnelPinkTint || "#ff3fb4") : (c.tunnelBlueTint || "#3fa8ff");
+  }
+  function tintTunnel59(state, ctx, width, height) {
+    var side = tunnelSide59(state); if (!side) return;
+    var c = cfg(state), k = c.tunnelTintStrength != null ? +c.tunnelTintStrength : 0.6;
+    if (!(k > 0)) return;
+    var col = tunnelTintCol59(state, side);
+    ctx.save();
+    ctx.globalCompositeOperation = "color"; ctx.globalAlpha = Math.min(1, k); ctx.fillStyle = col; ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "screen"; ctx.globalAlpha = Math.min(1, k) * 0.12; ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
   function drawTunnelInterior(state, ctx, width, height) {
+    var r59 = drawTunnelInterior0(state, ctx, width, height);
+    if (r59) tintTunnel59(state, ctx, width, height);
+    return r59;
+  }
+  function drawTunnelInterior0(state, ctx, width, height) {
     var c = cfg(state);
     if (!state.inTunnel) return false;
     // sega34: prefer procedural Super Scaler ring-rush
@@ -1676,10 +1714,34 @@
   }
 
   // sega48: black starfield = drawStarrySky's procedural Sega stars over black, full sky band
+  // sega59: ascentStarAccel - during the win ascent (winPhase centerY / horizon) the star background scrolls DOWN and accelerates
+  // (ascentStarAccel x screen-h / s^2 up to ascentStarMaxSpeed screen-h / s) with streaks (length = speed x ascentStarStreak s);
+  // once she has left the screen (winPhase done) the speed eases over ascentStarEaseSec to ascentStarDriftSpeed.
+  function ascentStarScroll59(state, bandH) {
+    var c = cfg(state);
+    if (c.ascentStarAccelOn === false || state.finaleMode !== "winCruise") { state._ascStar59 = null; return null; }
+    var ph = state.winPhase, now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    var st = state._ascStar59 || (state._ascStar59 = { v: 0, y: 0, last: now, v0: 0, doneT: null });
+    var dt = Math.min(0.1, Math.max(0, now - st.last)); st.last = now;
+    var drift = c.ascentStarDriftSpeed != null ? +c.ascentStarDriftSpeed : 0.03;
+    if (ph === "centerY" || ph === "horizon") {
+      st.v = Math.min(c.ascentStarMaxSpeed != null ? +c.ascentStarMaxSpeed : 2.2, st.v + (c.ascentStarAccel != null ? +c.ascentStarAccel : 0.5) * dt);
+      st.doneT = null;
+    } else if (ph === "done") {
+      if (st.doneT == null) { st.doneT = 0; st.v0 = st.v; }
+      st.doneT += dt;
+      var u = Math.min(1, st.doneT / Math.max(0.05, c.ascentStarEaseSec != null ? +c.ascentStarEaseSec : 2.5));
+      u = u * u * (3 - 2 * u);
+      st.v = st.v0 + (drift - st.v0) * u;
+    } else return null;
+    st.y = (st.y + st.v * dt * bandH) % (bandH * 1000);
+    return { y: st.y, streak: st.v * bandH * (c.ascentStarStreak != null ? +c.ascentStarStreak : 0.035) };
+  }
   function drawStarfield(state, ctx, width, bandH, alpha) {
     if (!(alpha > 0.003)) return;
     var i, x, y, tw, t = songT(state);
     var drift = state._bgParallaxX || 0;
+    var asc = ascentStarScroll59(state, Math.max(1, Math.floor(bandH)));
     ctx.save();
     for (i = 0; i < 140; i++) {
       x = (((i * 97) % width) + drift + width) % width;
@@ -1687,7 +1749,14 @@
       tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
       ctx.globalAlpha = tw * alpha;
       ctx.fillStyle = (i % 7 === 0) ? "#ff9ad5" : ((i % 5 === 0) ? "#7dffef" : "#ffffff");
-      ctx.fillRect(x, y, (i % 11 === 0) ? 2 : 1, (i % 11 === 0) ? 2 : 1);
+      var sz = (i % 11 === 0) ? 2 : 1;
+      if (asc) {
+        var B = Math.max(1, Math.floor(bandH)), par = 0.55 + 0.45 * ((i * 37) % 10) / 9;   // depth layers: near stars faster
+        y = ((y + asc.y * par) % B + B) % B;
+        var sl = Math.max(sz, Math.round(asc.streak * par));
+        if (sl > sz) { ctx.globalAlpha = tw * alpha * 0.55; ctx.fillRect(x, y - sl, sz, sl); ctx.globalAlpha = tw * alpha; }
+      }
+      ctx.fillRect(x, y, sz, sz);
     }
     ctx.restore();
   }

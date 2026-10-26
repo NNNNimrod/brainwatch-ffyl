@@ -698,8 +698,34 @@
     return j;
   }
 
-  // Returns [{img, a, key}] bottom → top.
+  // sega59: longer fades into the Greenbelt and the Capitol, same arrival time. greenbeltFadeInSec (old greenbeltFadeSec 5 -> 9):
+  // the greenbelt plate starts fading in over the holding/violet mix greenbeltFadeInSec before it is full (59 + 5 = 64 s).
+  // capitolFadeInSec (old 0 = hard cut at bossBgCapitolStartSec 184 -> 4): the fiery Capitol plate fades in over the post-nuke
+  // fire plates from 184 - 4 = 180 s and is full at 184.
   function computeBgMix(state) {
+    var mix = computeBgMix0(state), c = state.config || {}, t = state.songClock != null ? state.songClock : 0;
+    if (state.phase !== "running" || !mix || !mix.length) return mix;
+    var gF = c.greenbeltFadeInSec != null ? +c.greenbeltFadeInSec : 0;
+    if (gF > 0 && c.greenbeltPlateOn === true) {
+      var gbS = c.greenbeltFadeStart != null ? c.greenbeltFadeStart : 59.0, gbD = Math.max(0.05, c.greenbeltFadeSec != null ? c.greenbeltFadeSec : 5.0);
+      var g0 = gbS + gbD - gF, gImg = stripImg(state, "greenbelt");
+      if (gImg && t >= g0 && t < gbS) {
+        var gk = smoothstep01((t - g0) / gF);
+        if (gk > 0) mix = mix.concat([{ img: gImg, a: gk, key: "greenbelt" }]);
+      }
+    }
+    var cF = c.capitolFadeInSec != null ? +c.capitolFadeInSec : 0;
+    if (cF > 0 && state.postNukeFire && c.bossBgCapitolOn !== false) {
+      var cpS = c.bossBgCapitolStartSec != null ? c.bossBgCapitolStartSec : 184.0, cpF = stripImg(state, "capitol-fire");
+      if (cpF && t >= cpS - cF && t < cpS) {
+        var ck = smoothstep01((t - (cpS - cF)) / cF);
+        if (ck > 0) mix = mix.concat([{ img: cpF, a: ck, key: "capitol-fire" }]);
+      }
+    }
+    return mix;
+  }
+  // Returns [{img, a, key}] bottom → top.
+  function computeBgMix0(state) {
     var c = state.config || {};
     var t = state.songClock != null ? state.songClock : 0;
     if (state.postNukeFire) {
@@ -784,6 +810,7 @@
         var gImg = stripImg(state, "greenbelt");
         var vImg = stripImg(state, "violet") || vTo;
         var gk = smoothstep01((t - gbS) / gbD);
+        if (c.greenbeltFadeInSec != null && +c.greenbeltFadeInSec > 0) gk = smoothstep01((t - (gbS + gbD - +c.greenbeltFadeInSec)) / +c.greenbeltFadeInSec); // sega59
         tl = (vImg && gk < 1) ? [{ img: vImg, a: 1, key: "violet" }, { img: gImg, a: gk, key: "greenbelt" }]
           : [{ img: gImg, a: 1, key: "greenbelt" }];
       }
@@ -1100,6 +1127,12 @@
       if (r) rect = r;
     }
     ctx.globalAlpha = baseA;
+    if (state._clQ59) { // sega59: collapse lightning on top of the blended plates
+      var q59 = state._clQ59; state._clQ59 = null;
+      ctx.save(); ctx.setTransform(q59.m); ctx.globalAlpha = 1;
+      try { drawCollapseLightning59(state, ctx, q59.c, q59.t, q59.cs0, q59.cg, q59.cd, q59.r, q59.nearPx, q59.n); } catch (eL59) {}
+      ctx.restore();
+    }
     state._plateZoom54 = zTop;
     // sky storm (party-crash 28.02 / final boss) — only above the skyline silhouette
     if (rect && state._skyStormMode && ns.Sega31x && ns.Sega31x.drawSkyStorm) {
@@ -1268,6 +1301,59 @@
       ox.putImageData(od, 0, 0);
       return out;
     } catch (eG) { return null; }
+  }
+  // sega59: LIGHTNING ON FALLING BUILDINGS - during the post-nuke tower collapse jagged pixel bolts strike the sinking towers:
+  // bolt from the sky top to the tower top (re-jittered every 40 ms), sky flash (collapseLightningFlash), impact spark burst.
+  // Strike k hits collapsing tower k % n at (its collapse start + 0.1 s) + floor(k/n) * dur/2, optionally snapped to the 129 BPM beat.
+  function drawCollapseLightning59(state, ctx, c, t, cs0, cg, cd, r, nearPx, n) {
+    if (!(n > 0)) return;
+    var N = Math.max(0, Math.round(c.collapseLightningCount != null ? +c.collapseLightningCount : 8));
+    var life = 0.22, beat = 60 / (c.collapseLightningBpm != null ? +c.collapseLightningBpm : 129), k;
+    var flashA = c.collapseLightningFlash != null ? +c.collapseLightningFlash : 0.35, px = Math.max(2, Math.round(r.w / 320));
+    for (k = 0; k < N; k++) {
+      var ti = k % n, ts = cs0 + ti * cg + Math.floor(k / n) * cd * 0.5 + 0.1;
+      if (c.collapseLightningBeatSync !== false) ts = Math.ceil(ts / beat) * beat;
+      var age = t - ts;
+      if (age < 0 || age > life) continue;
+      // target: an ON-SCREEN tower that has started to fall (the scheduled tower can sit outside the visible part of the plate)
+      var vis = [], vi; for (vi = 0; vi < n; vi++) { var tv = state._clT59[vi]; if (tv && tv.x > state.width * 0.06 && tv.x < state.width * 0.94 && t >= cs0 + vi * cg) vis.push(vi); }
+      if (!vis.length) continue;
+      if (vis.indexOf(ti) < 0) ti = vis[k % vis.length];
+      var tw = state._clT59[ti]; if (!tw) continue;
+      var u = age / life, a = 1 - u, seed = Math.floor(t / 0.04) * 31 + k * 7919;
+      function rnd() { seed = (seed * 16807 + 11) % 2147483647; return seed / 2147483647; }
+      // flash
+      if (flashA > 0) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(220,230,255," + (flashA * a * a) + ")"; ctx.fillRect(r.x, r.y, r.w, nearPx - r.y); ctx.restore(); }
+      // bolt: jagged pixel path
+      var x0 = tw.x + (rnd() * 2 - 1) * tw.w * 1.5, y0 = r.y, x1 = tw.x + (rnd() * 2 - 1) * tw.w * 0.25, y1 = Math.min(nearPx - 4, tw.y);
+      var pts = [[x0, y0]], segs = 9, i;
+      for (i = 1; i < segs; i++) { var f = i / segs; pts.push([x0 + (x1 - x0) * f + (rnd() * 2 - 1) * tw.w * 0.6, y0 + (y1 - y0) * f]); }
+      pts.push([x1, y1]);
+      ctx.save();
+      [["rgba(160,90,255," + (0.55 * a) + ")", px * 3], ["rgba(120,240,255," + (0.85 * a) + ")", px * 2], ["rgba(255,255,255," + a + ")", px]].forEach(function(st) {
+        ctx.fillStyle = st[0];
+        for (i = 0; i < pts.length - 1; i++) {
+          var ax = pts[i][0], ay = pts[i][1], bx = pts[i + 1][0], by = pts[i + 1][1], steps = Math.max(1, Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)) / px)), q;
+          for (q = 0; q <= steps; q++) {
+            var X = Math.round((ax + (bx - ax) * q / steps) / px) * px, Y = Math.round((ay + (by - ay) * q / steps) / px) * px;
+            ctx.fillRect(X - st[1] / 2, Y - st[1] / 2, st[1], st[1]);
+          }
+        }
+      });
+      // branch
+      var bi = 3 + Math.floor(rnd() * 3), bxp = pts[bi][0], byp = pts[bi][1], bl = tw.w * (0.8 + rnd()), bd = rnd() < 0.5 ? -1 : 1, q2;
+      ctx.fillStyle = "rgba(200,250,255," + (0.8 * a) + ")";
+      for (q2 = 0; q2 < 8; q2++) ctx.fillRect(Math.round((bxp + bd * bl * q2 / 8 + (rnd() - 0.5) * px * 3) / px) * px, Math.round((byp + bl * 0.7 * q2 / 8) / px) * px, px, px);
+      // impact spark burst
+      var sp = px * (3 + 10 * Math.sqrt(u)), m;
+      for (m = 0; m < 10; m++) {
+        var an = m / 10 * 6.283 + rnd() * 0.4, rr = sp * (0.6 + rnd() * 0.6);
+        ctx.fillStyle = m % 3 === 0 ? "rgba(255,240,140," + a + ")" : "rgba(255,255,255," + a + ")";
+        ctx.fillRect(Math.round((x1 + Math.cos(an) * rr) / px) * px, Math.round((y1 + Math.sin(an) * rr * 0.7) / px) * px, px * 2, px * 2);
+      }
+      ctx.fillStyle = "rgba(255,255,255," + a + ")"; ctx.fillRect(x1 - px * 3, y1 - px * 3, px * 6, px * 6);
+      ctx.restore();
+    }
   }
   function L55build(state, key, img) {
     var c = state.config || {};
@@ -1454,7 +1540,10 @@
         ctx.save(); ctx.beginPath(); ctx.rect(r.x + sx0 * sxW - 0.5, r.y, sw * sxW + 1, nearPx - r.y); ctx.clip();
         ctx.drawImage(L.far, sx0, 0, sw, L.H, r.x + sx0 * sxW, r.y + sink * syH, sw * sxW, r.h);
         ctx.restore();
+        if (info.i >= 0) (state._clT59 || (state._clT59 = []))[info.i] = { x: r.x + (sx0 + sw / 2) * sxW, y: r.y + (info.mt * L.H + sink) * syH, w: sw * sxW };
       }
+      // sega59: queued, drawn once after all blended plates at full alpha (a top plate in the post-nuke mix used to cover it)
+      if (c.collapseLightningOn !== false && state._clT59) state._clQ59 = { c: c, t: t, cs0: cs0, cg: cg, cd: cd, r: r, nearPx: nearPx, n: rank, m: ctx.getTransform() };
     } else if (pu > 0) {
       var sh = pu * L55cfg(c, "bgRevealTreesPartFrac", 0.35) * r.w;
       ctx.drawImage(L.far, 0, 0, L.W / 2, L.H, r.x - sh, r.y, r.w / 2, r.h);
@@ -2127,6 +2216,7 @@ function renderWorld(state) {
     }
     var worldAlpha = state.worldFade == null ? 1 : state.worldFade;
 
+    sampleCapitolTop59(state, ctx, width, height); // sega59: before the clear - reads the previous frame
     ctx.clearRect(0, 0, width, height);
     // sega54: win star background (behind everything) + the horizon drop (Austin plate + ground band translated down)
     var winStarK54 = state._winStarK || 0;
@@ -2136,6 +2226,7 @@ function renderWorld(state) {
       ctx.fillStyle = "#02010a";
       ctx.fillRect(0, 0, width, height);
       if (ns.Sega31x && ns.Sega31x.drawStarfield) ns.Sega31x.drawStarfield(state, ctx, width, height, 1);
+      drawAtmosphere59(state, ctx, width, height);
       ctx.restore();
     }
     var dropOn54 = false;
@@ -3079,6 +3170,30 @@ function renderWorld(state) {
         var clAmt = cfgP.curveLeanAmount != null ? cfgP.curveLeanAmount : 1;
         clTilt = clK * clAmt * (cfgP.curveLeanTiltDeg != null ? cfgP.curveLeanTiltDeg : 6) * Math.PI / 180;
       }
+      // sega59: playerLeanSmoothOn - continuous lean L (-1..1) eased toward the lane-switch direction over playerLeanEaseSec and back
+      // upright (STRAIGHT frame) over playerReturnUprightSec once she rides straight; curve lean (sega53 _curveLeanK) is the
+      // straight-riding target, so bends still lean. Frame = sign(L) at |L| >= 0.5, neighbouring frame cross-blended around the
+      // switch point, plus a small roll (playerLeanTiltDeg x eased L).
+      var lean59 = null;
+      if (cfgP.playerLeanSmoothOn !== false && !drawPlayerNow.tunnelForced && state.finaleMode !== "winCruise" && state.phase === "running") {
+        var lnNow = (typeof performance !== "undefined" ? performance.now() : Date.now());
+        var lnDt = state._ln59T ? Math.min(0.1, Math.max(0, (lnNow - state._ln59T) / 1000)) : 0;
+        state._ln59T = lnNow;
+        var lnTgtX = (ns.State && ns.State.laneOffset) ? ns.State.laneOffset(state, state.lane || 0) : state.playerX;
+        var lnDX = lnTgtX - (state.playerX || 0);
+        var lnSw = Math.abs(lnDX) > (cfgP.curveLeanLaneEps != null ? cfgP.curveLeanLaneEps : 0.03);
+        var lnTgt = lnSw ? (lnDX < 0 ? -1 : 1) : (cfgP.curveLeanOn !== false ? (state._curveLeanK || 0) : 0);
+        var L = state._lean59 || 0;
+        var toward = Math.abs(lnTgt) > Math.abs(L) + 1e-4 || (lnTgt * L < 0);
+        var lnSec = Math.max(0.01, toward ? (cfgP.playerLeanEaseSec != null ? +cfgP.playerLeanEaseSec : 0.09) : (cfgP.playerReturnUprightSec != null ? +cfgP.playerReturnUprightSec : 0.25));
+        var lnStep = lnDt / lnSec;
+        L = L < lnTgt ? Math.min(lnTgt, L + lnStep) : Math.max(lnTgt, L - lnStep);
+        state._lean59 = L;
+        var aL = Math.abs(L), wL = aL * aL * (3 - 2 * aL), sL = L < 0 ? -1 : 1;
+        steerAmt = aL >= 0.5 ? sL : 0;
+        lean59 = { other: aL >= 0.5 ? 0 : sL, a: (aL > 0.02 && aL < 0.98) ? 0.5 * (1 - Math.abs(2 * wL - 1)) : 0,
+          tilt: (lnSw || Math.abs(state._curveLeanK || 0) < 0.01) ? sL * wL * (cfgP.playerLeanTiltDeg != null ? +cfgP.playerLeanTiltDeg : 3) * Math.PI / 180 : 0 };
+      } else state._lean59 = null;
       var zapShakeMult = (cfgP.zapHitShakeMult != null) ? cfgP.zapHitShakeMult : 1;
       if ((cfgP.zapHitShakeLeftRight !== false) && state.shockFlash > 0) {
         var tick = (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -3146,17 +3261,29 @@ function renderWorld(state) {
           ctx.restore();
         }
       }
-      if (clTilt) { ctx.save(); ctx.translate(playerDrawX, destY); ctx.rotate(clTilt); ctx.translate(-playerDrawX, -destY); }
-      Render.player(
-        ctx, width, height, state.resolution, state.roadWidth, state.sprites,
-        state.speed / state.maxSpeed,
-        (state.cameraDepth / drawZ) * pScale,
-        playerDrawX, destY,
-        steerAmt, playerUpdown
-      );
+      if (lean59 && state.shockFlash > 0) lean59 = null;   // zap flip owns the pose
+      var rot59 = (clTilt || 0) + (lean59 ? lean59.tilt : 0);
+      if (rot59) { ctx.save(); ctx.translate(playerDrawX, destY); ctx.rotate(rot59); ctx.translate(-playerDrawX, -destY); }
+      var mr59 = Math.random, rv59 = Math.random();
+      try {
+        if (lean59 && lean59.a > 0.01) Math.random = function() { return rv59; };   // same hover bounce for both blended frames
+        Render.player(
+          ctx, width, height, state.resolution, state.roadWidth, state.sprites,
+          state.speed / state.maxSpeed,
+          (state.cameraDepth / drawZ) * pScale,
+          playerDrawX, destY,
+          steerAmt, playerUpdown
+        );
+        if (lean59 && lean59.a > 0.01) {
+          var ga59 = ctx.globalAlpha; ctx.globalAlpha = ga59 * lean59.a;
+          Render.player(ctx, width, height, state.resolution, state.roadWidth, state.sprites, state.speed / state.maxSpeed,
+            (state.cameraDepth / drawZ) * pScale, playerDrawX, destY, lean59.other, playerUpdown);
+          ctx.globalAlpha = ga59;
+        }
+      } finally { Math.random = mr59; }
       // sega31z: player-hit red-diff overlay (brain zap/damage) matching steer pose
       drawPlayerHitRedDiff(state, ctx, width, height, playerDrawX, destY, steerAmt, pScale, drawZ);
-      if (clTilt) ctx.restore();
+      if (rot59) ctx.restore();
     }
     ctx.restore();
     if (state.shockFlash > 0) {
@@ -3183,6 +3310,89 @@ function renderWorld(state) {
     }
   }
 
+  // sega59 v2: atmosphereSampleCapitolTop - the atmosphere's bottom colour is the city plate's top-row sky AS DRAWN (grading, fades,
+  // flicker included): read from the previous frame (before the clear) just below the sinking plate's top edge, per-channel median
+  // over the middle 70 % of the row, averaged over every frame while the stars are fully in and the drop has barely started
+  // (drop <= 0.04); then locked.
+  function sampleCapitolTop59(state, ctx, W, H) {
+    var c = state.config || {};
+    if (c.atmosphereAscentOn === false || c.atmosphereSampleCapitolTop === false || state.finaleMode !== "winCruise") { state._atmCol59 = null; return; }
+    var A = state._atmCol59 || (state._atmCol59 = { col: null, lock: false });
+    if (A.lock || (state._winStarK || 0) < 0.99) return;
+    var drop = state._winHorizonDrop || 0;
+    if (drop > 0.04) { if (A.col) A.lock = true; return; }
+    try {
+      var cv = ctx.canvas, k = cv.width / Math.max(1, W);
+      var y = Math.round((drop * H + Math.max(3, H * 0.006)) * k), x0 = Math.round(W * 0.15 * k), w = Math.round(W * 0.7 * k);
+      var d = ctx.getImageData(x0, y, w, 2).data, R = [], G = [], B = [], i;
+      for (i = 0; i < d.length; i += 16) { R.push(d[i]); G.push(d[i + 1]); B.push(d[i + 2]); }
+      var med = function(a) { a.sort(function(p, q) { return p - q; }); return a[a.length >> 1] | 0; };
+      // average the per-frame medians over the sampling window (the green Capitol twin flickers in some frames)
+      var ac = A.acc || (A.acc = [0, 0, 0, 0]); ac[0] += med(R); ac[1] += med(G); ac[2] += med(B); ac[3]++;
+      A.col = [Math.round(ac[0] / ac[3]), Math.round(ac[1] / ac[3]), Math.round(ac[2] / ac[3])];
+    } catch (eS) {}
+  }
+  function hexRgb59(h, fb) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(h || "")); if (!m) return fb;
+    var n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  // sega59 v2: ATMOSPHERE ON ASCENT - Earth's atmosphere seen from orbit above the sinking city (win horizon drop _winHorizonDrop).
+  // Radial (follows the curved limb, so no horizontal bands): solid city-top colour (sampled, fallback atmosphereColorLow) inside
+  // -> smooth soft-alpha scattering blue (atmosphereColorMid) thinning out -> pale white-cyan (atmosphereColorHigh) at the limb;
+  // feathered limb glow (wide faint + thin bright, atmosphereLimbGlow) spilling into space. Band bottom = drop x atmosphereParallax.
+  function drawAtmosphere59(state, ctx, W, H) {
+    var c = state.config || {};
+    if (c.atmosphereAscentOn === false || state.finaleMode !== "winCruise") { state._atm59 = null; return; }
+    var drop = state._winHorizonDrop || 0;
+    var now = (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
+    var A = state._atm59 || (state._atm59 = { p: 0, last: now });
+    var dt = Math.min(0.1, Math.max(0, now - A.last)); A.last = now;
+    var par = c.atmosphereParallax != null ? +c.atmosphereParallax : 0.85;
+    var p = drop * par;
+    if (drop >= 0.999) A.p = Math.max(A.p, p) + dt * 0.25 * par; else A.p = p;   // keeps sinking after the drop, then fades
+    p = A.p;
+    if (!(p > 0.001)) return;
+    var hF = c.atmosphereHeightFrac != null ? +c.atmosphereHeightFrac : 0.22;
+    var travel = 1 + hF, fadeA = 1 - Math.max(0, Math.min(1, (p / travel - 0.65) / 0.35));
+    if (!(fadeA > 0.01)) return;
+    var low = (state._atmCol59 && state._atmCol59.col) || hexRgb59(c.atmosphereColorLow, [27, 63, 184]);
+    var mid = hexRgb59(c.atmosphereColorMid, [90, 150, 230]), high = hexRgb59(c.atmosphereColorHigh, [214, 244, 255]);
+    state._atmLow59 = low;
+    var base = p * H, hH = hF * H, top = base - hH, R = W * 2.4, cx = W / 2, cy = top + R, ri = R - hH;
+    function mix(a, b, f) { return [Math.round(a[0] + (b[0] - a[0]) * f), Math.round(a[1] + (b[1] - a[1]) * f), Math.round(a[2] + (b[2] - a[2]) * f)]; }
+    function rgba(col, al) { return "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + al.toFixed(3) + ")"; }
+    ctx.save();
+    ctx.globalAlpha = fadeA;
+    // solid core (= the sky the city plate ends on) down to just behind the city top -> seamless join
+    ctx.fillStyle = rgba(low, 1);
+    ctx.beginPath(); ctx.arc(cx, cy, ri + 1, 0, Math.PI * 2); ctx.fill();
+    // scattering shell: many stops, alpha thins with height (space shows through), colour low -> mid -> high
+    var g = ctx.createRadialGradient(cx, cy, ri, cx, cy, R), n = 12, i;
+    for (i = 0; i <= n; i++) {
+      var f = i / n, e = f * f * (3 - 2 * f), col = f < 0.55 ? mix(low, mid, e / 0.648) : mix(mid, high, (f - 0.55) / 0.45);
+      var al = f < 0.55 ? 1 - 0.62 * (f / 0.55) : 0.38 + 0.32 * Math.pow((f - 0.55) / 0.45, 2.2);
+      if (f < 0.55) col = mix(low, mid, Math.min(1, e / 0.648));
+      g.addColorStop(f, rgba(col, Math.max(0, Math.min(1, al))));
+    }
+    g.addColorStop(1, rgba(high, 0.0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.arc(cx, cy, ri, 0, Math.PI * 2, true); ctx.fill();
+    ctx.restore();
+    // feathered limb: outer faint halo into space + soft glow + thin bright line, slightly inside the edge
+    var lg = c.atmosphereLimbGlow != null ? +c.atmosphereLimbGlow : 1;
+    if (lg > 0) {
+      ctx.save();
+      ctx.globalAlpha = fadeA; ctx.globalCompositeOperation = "lighter";
+      var halo = ctx.createRadialGradient(cx, cy, R - hH * 0.18, cx, cy, R + hH * 0.22);
+      halo.addColorStop(0, rgba(high, 0)); halo.addColorStop(0.45, rgba(high, 0.22 * lg)); halo.addColorStop(0.55, rgba(high, 0.16 * lg)); halo.addColorStop(1, rgba(high, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(cx, cy, R + hH * 0.22, 0, Math.PI * 2); ctx.arc(cx, cy, R - hH * 0.18, 0, Math.PI * 2, true); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy, R - Math.max(1, H * 0.002), Math.PI * 1.03, Math.PI * 1.97);
+      ctx.strokeStyle = rgba(mix(high, [255, 255, 255], 0.5), Math.min(1, 0.55 * lg)); ctx.lineWidth = Math.max(1, H * 0.0025);
+      ctx.shadowColor = rgba(high, 0.9); ctx.shadowBlur = 6 * lg; ctx.stroke();
+      ctx.restore();
+    }
+  }
   // sega56: intro fade — the whole game scene fades up from black from the run start to introFadeEndSec (VERSE 1 title, 8 s)
   function introFadeK56(state) {
     var c = state.config || {};
@@ -3195,6 +3405,65 @@ function renderWorld(state) {
     if (cv === "easeOut") return 1 - (1 - u) * (1 - u);
     if (cv === "smooth") return u * u * (3 - 2 * u);
     return u * u; // easeIn
+  }
+  // sega59: initial instructions centred on the game canvas during the intro fade (0 -> introFadeEndSec / VERSE 1).
+  // Text = the howto lines of the lyric chart (ns.LYRICS, howto:true) timed before introFadeEndSec. Drawn after the black veil
+  // so it is fully readable from the first frame; fades in over 0.25 s, out over introInstructionsFadeOutSec ending at
+  // introFadeEndSec - introInstructionsGapSec (clear of the VERSE 1 title). Pixel font + the instruction-banner panel style.
+  function introInstructions59(state) {
+    var c = state.config || {};
+    if (c.introInstructionsOn === false || state.phase !== "running") return null;
+    var end = c.introFadeEndSec != null ? +c.introFadeEndSec : 8;
+    var hideAt = end - Math.max(0, c.introInstructionsGapSec != null ? +c.introInstructionsGapSec : 0.2);
+    var fo = Math.max(0.05, c.introInstructionsFadeOutSec != null ? +c.introInstructionsFadeOutSec : 0.8);
+    var t = state.songClock != null ? state.songClock : 0;
+    if (t < 0 || t >= hideAt) return null;
+    var a = Math.min(1, t / 0.25, (hideAt - t) / fo);
+    if (!(a > 0.01)) return null;
+    var L = ns.LYRICS || [], lines = [], i;
+    for (i = 0; i < L.length; i++) {
+      if (!L[i] || !L[i].howto || !(L[i].t < end)) continue;
+      if (c.introInstructionsStagger === true && L[i].t > t) continue;
+      lines.push(String(L[i].text || ""));
+    }
+    return lines.length ? { a: a, lines: lines } : null;
+  }
+  function drawIntroInstructions59(state) {
+    var ii = introInstructions59(state);
+    if (!ii) return;
+    var c = state.config || {}, ctx = state.ctx, W = state.width, H = state.height;
+    var sc = c.introInstructionsScale != null ? +c.introInstructionsScale : 1;
+    var fpx = Math.max(8, Math.round(16 * sc / 2) * 2);
+    var font = fpx + "px " + (c.uiFontTitle || '"Press Start 2P", "Courier New", monospace');
+    var maxW = W * 0.84, lh = Math.round(fpx * 1.7), gap = Math.round(fpx * 1.1), rows = [], i, j;
+    ctx.save();
+    ctx.font = font;
+    for (i = 0; i < ii.lines.length; i++) {           // word-wrap each how-to line to the panel width
+      var words = ii.lines[i].split(/\s+/), cur = "";
+      for (j = 0; j < words.length; j++) {
+        var tryS = cur ? cur + " " + words[j] : words[j];
+        if (cur && ctx.measureText(tryS).width > maxW - fpx * 2) { rows.push({ s: cur }); cur = words[j]; } else cur = tryS;
+      }
+      if (cur) rows.push({ s: cur, end: true });
+    }
+    var tw = 0; for (i = 0; i < rows.length; i++) tw = Math.max(tw, ctx.measureText(rows[i].s).width);
+    var nGap = 0; for (i = 0; i < rows.length - 1; i++) if (rows[i].end) nGap++;
+    var pw = Math.min(W - 16, tw + fpx * 3), ph = rows.length * lh + nGap * (gap - lh * 0.4) + fpx * 2;
+    var px = Math.round((W - pw) / 2), py = Math.round(H * (c.introInstructionsYFrac != null ? +c.introInstructionsYFrac : 0.42) - ph / 2);
+    ctx.globalAlpha = ii.a;
+    var g = ctx.createLinearGradient(px, 0, px + pw, 0);
+    g.addColorStop(0, "rgba(80,0,60,0.88)"); g.addColorStop(1, "rgba(0,40,70,0.88)");
+    ctx.fillStyle = g; ctx.shadowColor = "rgba(255,46,196,0.45)"; ctx.shadowBlur = 18;
+    ctx.fillRect(px, py, pw, ph);
+    ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(125,255,239,0.6)"; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var y = py + fpx + lh / 2;
+    for (i = 0; i < rows.length; i++) {
+      ctx.fillStyle = "#1a0530"; ctx.fillText(rows[i].s, W / 2 + 2, y + 2);   // pixel drop shadow
+      ctx.fillStyle = "#ffffff"; ctx.fillText(rows[i].s, W / 2, y);
+      y += lh + (rows[i].end && i < rows.length - 1 ? gap - lh * 0.4 : 0);
+    }
+    ctx.restore();
   }
   function drawIntroFade56(state) {
     var k = introFadeK56(state), c = state.config || {};
@@ -3259,6 +3528,7 @@ function renderWorld(state) {
         renderEffects(state);
         if (shake) { state.ctx.restore(); shake = null; }
         drawIntroFade56(state); // sega56: whole-scene intro fade (canvas UI banners below stay readable)
+        drawIntroInstructions59(state); // sega59: how-to lines centred ABOVE the intro fade
         renderNukeFlash(state);
         renderNukeDetFlash(state);
         renderInvasion(state);
